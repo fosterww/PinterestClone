@@ -1,4 +1,5 @@
 import uuid
+from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,10 +21,11 @@ router = APIRouter()
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_new_pin(
-    title: str = Form(...),
-    description: str | None = Form(None),
-    link_url: str | None = Form(None),
     image: UploadFile = File(...),
+    title: str = Form(...),
+    description: Optional[str] = Form(None),
+    link_url: Optional[str] = Form(None),
+    tags: Annotated[list[str], Form()] = [],
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> PinResponse:
@@ -33,10 +35,9 @@ async def create_new_pin(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Unsupported image type: {image.content_type}",
         )
-    
-    image_url = await upload_image_to_s3(image)
 
-    data = PinCreate(title=title, description=description, link_url=link_url)
+    image_url = await upload_image_to_s3(image)
+    data = PinCreate(title=title, description=description, link_url=link_url, tags=tags)
     pin = await create_pin(db, current_user, data, image_url=image_url)
     return pin
 

@@ -19,7 +19,15 @@ board_pin_association = Table(
     "board_pins",
     Base.metadata,
     Column("board_id", SAUUID(as_uuid=True), ForeignKey("boards.id"), primary_key=True),
-    Column("pin_id",   SAUUID(as_uuid=True), ForeignKey("pins.id"),   primary_key=True),
+    Column("pin_id", SAUUID(as_uuid=True), ForeignKey("pins.id"), primary_key=True),
+)
+
+
+pin_tag_association = Table(
+    "pin_tags",
+    Base.metadata,
+    Column("pin_id", SAUUID(as_uuid=True), ForeignKey("pins.id"), primary_key=True),
+    Column("tag_id", SAUUID(as_uuid=True), ForeignKey("tags.id"), primary_key=True),
 )
 
 
@@ -41,6 +49,11 @@ class PinModel(Base):
     boards: Mapped[list["BoardModel"]] = relationship(
         "BoardModel",
         secondary=board_pin_association,
+        back_populates="pins"
+    )
+    tags: Mapped[list["TagModel"]] = relationship(
+        "TagModel",
+        secondary=pin_tag_association,
         back_populates="pins"
     )
 
@@ -66,4 +79,19 @@ class BoardModel(Base):
         "PinModel",
         secondary=board_pin_association,
         back_populates="boards"
+    )
+
+
+class TagModel(Base):
+    __tablename__ = "tags"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(50), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+
+    pins: Mapped[list["PinModel"]] = relationship(
+        "PinModel",
+        secondary=pin_tag_association,
+        back_populates="tags"
     )

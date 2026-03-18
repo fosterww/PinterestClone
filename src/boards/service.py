@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.boards.models import BoardModel, PinModel, board_pin_association
+from src.boards.models import BoardModel, PinModel
 from src.users.models import UserModel
 from src.boards.schemas import BoardCreate, BoardUpdate
 
@@ -63,7 +63,8 @@ async def get_board_by_id(
     try:
         result = await db.execute(
             select(BoardModel).where(BoardModel.id == board_id)
-            .options(joinedload(BoardModel.user), selectinload(BoardModel.pins))
+            .options(joinedload(BoardModel.user), 
+            selectinload(BoardModel.pins).selectinload(PinModel.tags))
         )
         return result.scalar_one_or_none()
     except SQLAlchemyError:
@@ -122,17 +123,14 @@ async def add_pin_to_board(
             detail="Not the board owner",
         )
     try:
-        check_stmt = select(board_pin_association).where(
-            (board_pin_association.c.board_id == board.id) &
-            (board_pin_association.c.pin_id == pin.id)
+        result = await db.execute(
+            select(BoardModel)
+            .where(BoardModel.id == board.id)
+            .options(selectinload(BoardModel.pins))
         )
-        result = await db.execute(check_stmt)
-        if result.first():
-            return
-        stmt = board_pin_association.insert().values(
-            board_id=board.id, pin_id=pin.id
-        )
-        await db.execute(stmt)
+        fresh_board = result.scalar_one()
+        if pin not in fresh_board.pins:
+            fresh_board.pins.append(pin)
         await db.flush()
     except IntegrityError:
         await db.rollback()
@@ -164,11 +162,14 @@ async def remove_pin_from_board(
             detail="Not the board owner",
         )
     try:
-        stmt = board_pin_association.delete().where(
-            (board_pin_association.c.board_id == board.id)
-            & (board_pin_association.c.pin_id == pin.id)
+        result = await db.execute(
+            select(BoardModel)
+            .where(BoardModel.id == board.id)
+            .options(selectinload(BoardModel.pins))
         )
-        await db.execute(stmt)
+        fresh_board = result.scalar_one()
+        if pin in fresh_board.pins:
+            fresh_board.pins.remove(pin)
         await db.flush()
     except SQLAlchemyError:
         await db.rollback()

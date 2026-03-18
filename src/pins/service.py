@@ -2,18 +2,20 @@ import uuid
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.boards.models import PinModel
 from src.users.models import UserModel
 from src.pins.schemas import PinCreate, PinUpdate
-
+from src.tags.service import get_or_create_tag
 
 async def create_pin(
     db: AsyncSession, owner: UserModel, data: PinCreate, image_url: str
 ) -> PinModel:
     try:
+        tags = await get_or_create_tag(db, data.tags)
         pin = PinModel(
             id=uuid.uuid4(),
             owner_id=owner.id,
@@ -21,10 +23,16 @@ async def create_pin(
             description=data.description,
             image_url=image_url,
             link_url=data.link_url,
+            tags=tags
         )
         db.add(pin)
         await db.flush()
-        return pin
+        result = await db.execute(
+            select(PinModel)
+            .where(PinModel.id == pin.id)
+            .options(selectinload(PinModel.tags))
+        )
+        return result.scalar_one()
     except IntegrityError:
         await db.rollback()
         raise HTTPException(
@@ -46,6 +54,7 @@ async def get_pins(
         result = await db.execute(
             select(PinModel)
             .order_by(PinModel.created_at.desc())
+            .options(selectinload(PinModel.tags))
             .offset(offset)
             .limit(limit)
         )
@@ -61,6 +70,7 @@ async def get_pin_by_id(db: AsyncSession, pin_id: uuid.UUID) -> PinModel:
     try:
         result = await db.execute(
             select(PinModel).where(PinModel.id == pin_id)
+            .options(selectinload(PinModel.tags))
         )
         pin = result.scalar_one_or_none()
         if pin is None:
@@ -82,12 +92,19 @@ async def update_pin(
             detail="Not the pin owner",
         )
     update_data = data.model_dump(exclude_unset=True)
+    if "tags" in update_data:
+        pin.tags = await get_or_create_tag(db, update_data["tags"])
+        del update_data["tags"]
     for field, value in update_data.items():
         setattr(pin, field, value)
     try:
         await db.flush()
-        await db.refresh(pin)
-        return pin
+        result = await db.execute(
+            select(PinModel)
+            .where(PinModel.id == pin.id)
+            .options(selectinload(PinModel.tags))
+        )
+        return result.scalar_one()
     except IntegrityError:
         await db.rollback()
         raise HTTPException(

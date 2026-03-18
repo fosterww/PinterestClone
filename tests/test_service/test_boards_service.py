@@ -1,6 +1,5 @@
 import pytest
 import pytest_asyncio
-import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException
     

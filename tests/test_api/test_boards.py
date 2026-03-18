@@ -3,13 +3,13 @@ from httpx import AsyncClient
 from unittest.mock import patch, AsyncMock
 import io
 
-@pytest.fixture
-def fake_image():
-    return b"fake_image_content"
-
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from src.boards.models import BoardModel
+
+@pytest.fixture
+def fake_image():
+    return b"fake_image_content"
 
 @pytest.mark.asyncio
 async def test_boards_flow(client: AsyncClient, fake_image: bytes, db_session: AsyncSession):

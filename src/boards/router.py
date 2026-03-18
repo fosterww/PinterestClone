@@ -81,9 +81,5 @@ async def remove_pin(
     db: AsyncSession = Depends(get_db),
 ):
     board = await get_board_by_id(db, board_id)
-    if board is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Board not found")
     pin = await get_pin_by_id(db, pin_id)
-    if pin is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pin not found")
     await remove_pin_from_board(db, board, pin, current_user)
