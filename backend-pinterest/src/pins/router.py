@@ -1,10 +1,11 @@
 import uuid
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File, Form, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.s3 import upload_image_to_s3
+from src.core.clarifai import index_image_bytes, delete_image, search_similar_images_by_id
 from src.database import get_db
 from src.core.auth import get_current_user
 from src.users.models import UserModel
@@ -15,12 +16,15 @@ from src.pins.service import (
     get_pin_by_id,
     update_pin,
     delete_pin,
+    get_related_pins_from_db,
+    get_pins_by_ids,
 )
 
 router = APIRouter()
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_new_pin(
+    background_tasks: BackgroundTasks,
     image: UploadFile = File(...),
     title: str = Form(...),
     description: Optional[str] = Form(None),
@@ -36,9 +40,14 @@ async def create_new_pin(
             detail=f"Unsupported image type: {image.content_type}",
         )
 
+    content = await image.read()
+    await image.seek(0)
+
     image_url = await upload_image_to_s3(image)
     data = PinCreate(title=title, description=description, link_url=link_url, tags=tags)
     pin = await create_pin(db, current_user, data, image_url=image_url)
+    
+    background_tasks.add_task(index_image_bytes, str(pin.id), content)
     return pin
 
 
@@ -70,8 +79,42 @@ async def patch_pin(
 @router.delete("/{pin_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_pin(
     pin_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     pin = await get_pin_by_id(db, pin_id)
     await delete_pin(db, pin, current_user)
+    
+    background_tasks.add_task(delete_image, str(pin_id))
+
+
+@router.get("/{pin_id}/related")
+async def get_related_pins(
+    pin_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db)
+) -> list[PinResponse]:
+    similar_ids = await search_similar_images_by_id(str(pin_id))
+    db_related_pins = await get_related_pins_from_db(db, pin_id, limit=20)
+    clarifai_pins = await get_pins_by_ids(db, similar_ids)
+
+    seen_ids = set()
+    merged_pins = []
+    
+    clarifai_dict = {p.id: p for p in clarifai_pins}
+    
+    for cid in similar_ids:
+        try:
+            c_uuid = uuid.UUID(cid)
+            if c_uuid in clarifai_dict and c_uuid not in seen_ids:
+                merged_pins.append(clarifai_dict[c_uuid])
+                seen_ids.add(c_uuid)
+        except ValueError:
+            pass
+
+    for db_pin in db_related_pins:
+        if db_pin.id not in seen_ids:
+            merged_pins.append(db_pin)
+            seen_ids.add(db_pin.id)
+            
+    return merged_pins

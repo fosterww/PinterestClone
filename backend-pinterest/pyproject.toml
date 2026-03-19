@@ -23,4 +23,5 @@ dependencies = [
     "pydantic[email]>=2.12.5",
     "ruff>=0.15.6",
     "aiosqlite>=0.22.1",
+    "clarifai>=11.6.8",
 ]

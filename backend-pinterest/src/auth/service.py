@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.security import hash_password, verify_password, create_access_token
+from src.core.logger import logger
 from src.users.models import UserModel
 from src.users.schemas import UserCreate
 
@@ -45,6 +46,7 @@ async def register_user(db: AsyncSession, data: UserCreate) -> UserModel:
         )
     except SQLAlchemyError:
         await db.rollback()
+        logger.error(f"Database error while creating user: {data.username}, {data.email}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database error during registration",
@@ -59,14 +61,15 @@ async def authenticate_user(
             select(UserModel).where(UserModel.username == username)
         )
         user = result.scalar_one_or_none()
+        if user is None or not verify_password(password, user.hashed_password):
+            return None
+        return user
     except SQLAlchemyError:
+        logger.error(f"Database error while authenticating user: {username}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database error during authentication",
         )
-    if user is None or not verify_password(password, user.hashed_password):
-        return None
-    return user
 
 
 def create_user_token(user: UserModel) -> str:

@@ -15,8 +15,6 @@ if config.config_file_name is not None:
 
 from src.core.config import settings  # noqa: E402
 from src.database import Base  # noqa: E402
-from src.users.models import UserModel
-from src.boards.models import BoardModel, PinModel, TagModel
 
 config.set_main_option("sqlalchemy.url", settings.async_database_url)
 

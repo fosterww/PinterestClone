@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.logger import logger
 from src.boards.models import BoardModel, PinModel
 from src.users.models import UserModel
 from src.boards.schemas import BoardCreate, BoardUpdate
@@ -33,6 +34,7 @@ async def create_board(
         )
     except SQLAlchemyError:
         await db.rollback()
+        logger.error(f"Database error while creating board: {owner.id}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database error while creating board",
@@ -51,6 +53,7 @@ async def get_user_boards(
         )
         return list(result.scalars().all())
     except SQLAlchemyError:
+        logger.error(f"Database error while fetching boards: {user_id}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database error while fetching boards",
@@ -68,6 +71,7 @@ async def get_board_by_id(
         )
         return result.scalar_one_or_none()
     except SQLAlchemyError:
+        logger.error(f"Database error while fetching board: {board_id}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database error while fetching board",
@@ -95,12 +99,14 @@ async def update_board(
         return board
     except IntegrityError:
         await db.rollback()
+        logger.error(f"Board update conflicts with existing data: {board.id}")
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Board update conflicts with existing data",
         )
     except SQLAlchemyError:
         await db.rollback()
+        logger.error(f"Database error while updating board: {board.id}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database error while updating board",
@@ -140,6 +146,7 @@ async def add_pin_to_board(
         )
     except SQLAlchemyError:
         await db.rollback()
+        logger.error(f"Database error while adding pin to board: {board.id}, {pin.id}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database error while adding pin to board",
@@ -173,6 +180,7 @@ async def remove_pin_from_board(
         await db.flush()
     except SQLAlchemyError:
         await db.rollback()
+        logger.error(f"Database error while removing pin from board: {board.id}, {pin.id}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database error while removing pin from board",

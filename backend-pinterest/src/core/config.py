@@ -43,5 +43,8 @@ class Settings(BaseSettings):
     s3_bucket_name: str = "pinterest"
     s3_public_base_url: str = "http://localhost:9000/pinterest"
 
+    clarifai_api_key: str = ""
+    clarifai_user_id: str = ""
+    clarifai_app_id: str = ""
 
 settings = Settings()
