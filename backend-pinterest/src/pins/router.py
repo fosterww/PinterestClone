@@ -1,7 +1,8 @@
 import uuid
+import base64
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.s3 import upload_image_to_s3
@@ -19,12 +20,12 @@ from src.pins.service import (
     get_related_pins_from_db,
     get_pins_by_ids,
 )
+from src.pins.task import index_image_task, delete_image_task
 
 router = APIRouter()
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_new_pin(
-    background_tasks: BackgroundTasks,
     image: UploadFile = File(...),
     title: str = Form(...),
     description: Optional[str] = Form(None),
@@ -47,7 +48,8 @@ async def create_new_pin(
     data = PinCreate(title=title, description=description, link_url=link_url, tags=tags)
     pin = await create_pin(db, current_user, data, image_url=image_url)
     
-    background_tasks.add_task(index_image_bytes, str(pin.id), content)
+    base64_image = base64.b64encode(content).decode("utf-8")
+    index_image_task.delay(str(pin.id), base64_image)
     return pin
 
 
@@ -79,14 +81,13 @@ async def patch_pin(
 @router.delete("/{pin_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_pin(
     pin_id: uuid.UUID,
-    background_tasks: BackgroundTasks,
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     pin = await get_pin_by_id(db, pin_id)
     await delete_pin(db, pin, current_user)
     
-    background_tasks.add_task(delete_image, str(pin_id))
+    delete_image_task.delay(str(pin_id))
 
 
 @router.get("/{pin_id}/related")

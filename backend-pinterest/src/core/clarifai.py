@@ -1,10 +1,16 @@
 import base64
 import httpx
 
+from tenacity import retry, stop_after_attempt, wait_exponential
 from src.core.logger import logger
 from src.core.config import settings
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    reraise=True
+)
 async def index_image_bytes(pin_id: str, image_bytes: bytes) -> None:
     if not settings.clarifai_api_key or not settings.clarifai_app_id or not settings.clarifai_user_id:
         logger.warning("Clarifai credentials not set. Skipping image indexing.")
@@ -39,6 +45,11 @@ async def index_image_bytes(pin_id: str, image_bytes: bytes) -> None:
         logger.error(f"Failed to index image in Clarifai: {e}")
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    reraise=True
+)
 async def delete_image(pin_id: str) -> None:
     if not settings.clarifai_api_key or not settings.clarifai_app_id or not settings.clarifai_user_id:
         return
@@ -59,6 +70,11 @@ async def delete_image(pin_id: str) -> None:
         logger.error(f"Failed to delete image in Clarifai: {e}")
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    reraise=True
+)
 async def search_similar_images_by_id(pin_id: str) -> list[str]:
     if not settings.clarifai_api_key or not settings.clarifai_app_id or not settings.clarifai_user_id:
         return []

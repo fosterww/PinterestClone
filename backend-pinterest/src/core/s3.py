@@ -1,11 +1,17 @@
 import uuid
 
 import aioboto3
+from tenacity import retry, stop_after_attempt, wait_exponential
 from fastapi import UploadFile, HTTPException, status
 
 from src.core.config import settings
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    reraise=True
+)
 async def upload_image_to_s3(file: UploadFile) -> str:
     ext = file.filename.rsplit(".", 1)[-1] if "." in file.filename else "jpg"
     object_name = f"pins/{uuid.uuid4()}.{ext}"
@@ -27,8 +33,7 @@ async def upload_image_to_s3(file: UploadFile) -> str:
                 Body=content,
                 ContentType=file.content_type,
             )
-            return f"{settings.s3_public_base_url}/{object_name}"
-            
+            return f"{settings.s3_public_base_url}/{object_name}"  
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -47,6 +47,54 @@ services:
         mc anonymous set download local/${S3_BUCKET_NAME};
       "
 
+  redis:
+    image: redis:7-alpine
+    container_name: pinterest_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: pinterest_rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: pinterest
+      RABBITMQ_DEFAULT_PASS: pinterest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  celery:
+    build: .
+    container_name: pinterest_celery
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    env_file:
+      - .env
+    command: celery -A src.core.celery worker --loglevel=info
+
+  celery-beat:
+    build: .
+    container_name: pinterest_celery_beat
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    env_file:
+      - .env
+    command: celery -A src.core.celery beat --loglevel=info
+
   api:
     build: .
     container_name: pinterest_api
@@ -55,6 +103,10 @@ services:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     env_file:
       - .env
     ports:
@@ -66,3 +118,4 @@ services:
 volumes:
   postgres_data:
   minio_data:
+  redis_data:

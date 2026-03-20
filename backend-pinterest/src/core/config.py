@@ -43,6 +43,13 @@ class Settings(BaseSettings):
     s3_bucket_name: str = "pinterest"
     s3_public_base_url: str = "http://localhost:9000/pinterest"
 
+    redis_url: str = "redis://localhost:6379/0"
+    redis_host: str = "localhost"
+    redis_port: int = 6379
+    redis_db: int = 0
+    
+    rabbitmq_url: str = "amqp://pinterest:pinterest@localhost:5672//"
+
     clarifai_api_key: str = ""
     clarifai_user_id: str = ""
     clarifai_app_id: str = ""
