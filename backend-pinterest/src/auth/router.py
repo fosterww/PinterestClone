@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.limiter import limiter
 from src.database import get_db
 from src.auth.service import register_user, authenticate_user, create_user_token
 from src.users.schemas import UserCreate, UserResponse
@@ -10,12 +11,14 @@ router = APIRouter()
 
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
+@limiter.limit("5/minute")
 async def register(data: UserCreate, db: AsyncSession = Depends(get_db)) -> UserResponse:
     user = await register_user(db, data)
     return user
 
 
 @router.post("/login")
+@limiter.limit("5/minute")
 async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db),

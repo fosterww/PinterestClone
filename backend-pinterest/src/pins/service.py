@@ -1,12 +1,13 @@
 import uuid
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, Depends
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.logger import logger
+from src.core.cache import get_cache_service
 from src.boards.models import PinModel, pin_tag_association
 from src.users.models import UserModel
 from src.pins.schemas import PinCreate, PinUpdate
@@ -154,8 +155,17 @@ async def delete_pin(
 
 
 async def get_related_pins_from_db(
-    db: AsyncSession, pin_id: uuid.UUID, limit: int = 20
+    db: AsyncSession, 
+    pin_id: uuid.UUID, 
+    limit: int = 20,
+    cache_service = Depends(get_cache_service)
 ) -> list[PinModel]:
+    try:
+        cached_pins = await cache_service.get(f"related_pins:{pin_id}")
+        if cached_pins:
+            return cached_pins
+    except Exception:
+        pass
     try:
         result = await db.execute(
             select(PinModel)
@@ -178,6 +188,12 @@ async def get_related_pins_from_db(
             .options(selectinload(PinModel.tags))
             .limit(limit)
         )
+        cache_params = {
+            "key": f"related_pins:{pin_id}",
+            "value": list(related_result.scalars().all()),
+            "ttl": 3600
+        }
+        await cache_service.set(**cache_params)
         return list(related_result.scalars().all())
     except SQLAlchemyError:
         logger.error(f"Database error while fetching related pins: {pin_id}")

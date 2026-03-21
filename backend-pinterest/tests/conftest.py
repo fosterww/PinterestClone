@@ -1,6 +1,7 @@
 import pytest
 import pytest_asyncio
 from collections.abc import AsyncGenerator
+from unittest.mock import patch
 
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import (
@@ -54,3 +55,10 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         yield ac
 
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def mock_celery_tasks():
+    with patch("src.pins.router.index_image_task.delay") as mock_index, \
+         patch("src.pins.router.delete_image_task.delay") as mock_delete:
+        yield mock_index, mock_delete

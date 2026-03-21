@@ -1,3 +1,4 @@
+import uuid
 from pydantic import BaseModel, ConfigDict
 
 from src.boards.models import BoardVisibility
@@ -22,12 +23,14 @@ class BoardUpdate(BaseModel):
 
 
 class BoardResponse(BoardBase):
+    id: uuid.UUID
     user: UserResponse
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class BoardPinsResponse(BoardBase):
+    id: uuid.UUID
     user: UserResponse
     pins: list[PinResponse]
 

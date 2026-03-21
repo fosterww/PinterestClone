@@ -3,6 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.limiter import limiter
 from src.database import get_db
 from src.core.auth import get_current_user
 from src.users.models import UserModel
@@ -22,6 +23,7 @@ router = APIRouter()
 
 
 @router.post("/create", status_code=status.HTTP_201_CREATED)
+@limiter.limit("5/minute")
 async def create_new_board(
     data: BoardCreate,
     current_user: UserModel = Depends(get_current_user),
@@ -32,6 +34,7 @@ async def create_new_board(
 
 
 @router.get("/list")
+@limiter.limit("10/minute")
 async def list_boards(
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -48,6 +51,7 @@ async def read_board(board_id: uuid.UUID, db: AsyncSession = Depends(get_db)) ->
 
 
 @router.patch("/{board_id}/update")
+@limiter.limit("5/minute")
 async def patch_board(
     board_id: uuid.UUID,
     data: BoardUpdate,
@@ -61,6 +65,7 @@ async def patch_board(
 
 
 @router.post("/{board_id}/pins/{pin_id}/add", status_code=status.HTTP_201_CREATED)
+@limiter.limit("5/minute")
 async def add_pin(
     board_id: uuid.UUID,
     pin_id: uuid.UUID,
@@ -74,6 +79,7 @@ async def add_pin(
 
 
 @router.delete("/{board_id}/pins/{pin_id}/remove", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("5/minute")
 async def remove_pin(
     board_id: uuid.UUID,
     pin_id: uuid.UUID,

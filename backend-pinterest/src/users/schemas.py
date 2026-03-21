@@ -1,4 +1,4 @@
-
+import uuid
 from pydantic import BaseModel, ConfigDict, EmailStr
 
 
@@ -21,5 +21,6 @@ class UserUpdate(BaseModel):
 
 
 class UserResponse(UserBase):
+    id: uuid.UUID
 
     model_config = ConfigDict(from_attributes=True)

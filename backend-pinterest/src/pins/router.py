@@ -5,8 +5,9 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.s3 import upload_image_to_s3
-from src.core.clarifai import index_image_bytes, delete_image, search_similar_images_by_id
+from src.core.limiter import limiter
+from src.core.s3 import get_s3_service, S3Service
+from src.core.clarifai import get_clarifai_service, ClarifaiService
 from src.database import get_db
 from src.core.auth import get_current_user
 from src.users.models import UserModel
@@ -25,7 +26,9 @@ from src.pins.task import index_image_task, delete_image_task
 router = APIRouter()
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
+@limiter.limit("5/minute")
 async def create_new_pin(
+    s3_service: S3Service = Depends(get_s3_service),
     image: UploadFile = File(...),
     title: str = Form(...),
     description: Optional[str] = Form(None),
@@ -44,7 +47,7 @@ async def create_new_pin(
     content = await image.read()
     await image.seek(0)
 
-    image_url = await upload_image_to_s3(image)
+    image_url = await s3_service.upload_image_to_s3(image)
     data = PinCreate(title=title, description=description, link_url=link_url, tags=tags)
     pin = await create_pin(db, current_user, data, image_url=image_url)
     
@@ -54,6 +57,7 @@ async def create_new_pin(
 
 
 @router.get("/")
+@limiter.limit("10/minute")
 async def list_pins(
     offset: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
@@ -63,11 +67,13 @@ async def list_pins(
 
 
 @router.get("/{pin_id}")
+@limiter.limit("10/minute")
 async def read_pin(pin_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> PinResponse:
     return await get_pin_by_id(db, pin_id)
 
 
 @router.patch("/{pin_id}")
+@limiter.limit("5/minute")
 async def patch_pin(
     pin_id: uuid.UUID,
     data: PinUpdate,
@@ -79,6 +85,7 @@ async def patch_pin(
 
 
 @router.delete("/{pin_id}", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("5/minute")
 async def remove_pin(
     pin_id: uuid.UUID,
     current_user: UserModel = Depends(get_current_user),
@@ -91,11 +98,13 @@ async def remove_pin(
 
 
 @router.get("/{pin_id}/related")
+@limiter.limit("5/minute")
 async def get_related_pins(
     pin_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    clarifai_service: ClarifaiService = Depends(get_clarifai_service),
 ) -> list[PinResponse]:
-    similar_ids = await search_similar_images_by_id(str(pin_id))
+    similar_ids = await clarifai_service.search_similar_images_by_id(str(pin_id))
     db_related_pins = await get_related_pins_from_db(db, pin_id, limit=20)
     clarifai_pins = await get_pins_by_ids(db, similar_ids)
 

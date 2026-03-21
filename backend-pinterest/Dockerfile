@@ -1,22 +1,19 @@
 FROM python:3.12-slim AS builder
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
-
 WORKDIR /app
-
 COPY pyproject.toml uv.lock ./
-
 RUN uv sync --frozen --no-dev --no-install-project
 
 FROM python:3.12-slim AS runtime
-
 WORKDIR /app
+RUN addgroup --system appgroup && adduser --system --group appuser
+COPY --from=builder --chown=appuser:appgroup /app/.venv /app/.venv
+COPY --from=builder --chown=appuser:appgroup /app/src /app/src
+COPY --from=builder --chown=appuser:appgroup /app/alembic.ini /app/alembic.ini
+COPY --from=builder --chown=appuser:appgroup /app/migrations /app/migrations
 
-COPY --from=builder /app/.venv /app/.venv
-
-COPY src/ ./src/
-COPY alembic.ini ./
-COPY migrations/ ./migrations/
+USER appuser
 
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
