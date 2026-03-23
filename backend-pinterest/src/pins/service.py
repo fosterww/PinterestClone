@@ -1,16 +1,16 @@
 import uuid
 
-from fastapi import HTTPException, status, Depends
+from fastapi import HTTPException, status
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.logger import logger
-from src.core.cache import get_cache_service
+from src.core.cache import CacheService
 from src.boards.models import PinModel, pin_tag_association
 from src.users.models import UserModel
-from src.pins.schemas import PinCreate, PinUpdate
+from src.pins.schemas import PinCreate, PinUpdate, PinResponse
 from src.tags.service import get_or_create_tag
 
 async def create_pin(
@@ -158,12 +158,13 @@ async def get_related_pins_from_db(
     db: AsyncSession, 
     pin_id: uuid.UUID, 
     limit: int = 20,
-    cache_service = Depends(get_cache_service)
-) -> list[PinModel]:
+    cache_service: CacheService | None = None
+) -> list[PinModel | PinResponse]:
     try:
-        cached_pins = await cache_service.get(f"related_pins:{pin_id}")
-        if cached_pins:
-            return cached_pins
+        if cache_service:
+            cached_pins = await cache_service.get_pattern(f"related_pins:{pin_id}:*")
+            if cached_pins:
+                return [PinResponse.model_validate_json(p) for p in cached_pins if p]
     except Exception:
         pass
     try:
@@ -188,13 +189,12 @@ async def get_related_pins_from_db(
             .options(selectinload(PinModel.tags))
             .limit(limit)
         )
-        cache_params = {
-            "key": f"related_pins:{pin_id}",
-            "value": list(related_result.scalars().all()),
-            "ttl": 3600
-        }
-        await cache_service.set(**cache_params)
-        return list(related_result.scalars().all())
+        items = list(related_result.scalars().all())
+        if cache_service:
+            for i, pin in enumerate(items):
+                pin_json = PinResponse.model_validate(pin).model_dump_json()
+                await cache_service.set(f"related_pins:{pin_id}:{i}", pin_json, 600)
+        return items
     except SQLAlchemyError:
         logger.error(f"Database error while fetching related pins: {pin_id}")
         raise HTTPException(

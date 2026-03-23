@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import uuid
 from datetime import datetime
 from enum import Enum
+from typing import TYPE_CHECKING
 
 from sqlalchemy import String, func, ForeignKey, Table, Column
 from sqlalchemy import Enum as SAEnum
@@ -8,6 +11,9 @@ from sqlalchemy import UUID as SAUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
+
+if TYPE_CHECKING:
+    from src.users.models import UserModel
 
 
 class BoardVisibility(str, Enum):

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.limiter import limiter
@@ -14,6 +14,7 @@ router = APIRouter()
 @router.get("/me")
 @limiter.limit("10/minute")
 async def read_current_user(
+    request: Request,
     current_user: UserModel = Depends(get_current_user),
 ) -> UserResponse:
     return current_user
@@ -22,6 +23,7 @@ async def read_current_user(
 @router.patch("/me")
 @limiter.limit("5/minute")
 async def update_current_user(
+    request: Request,
     data: UserUpdate,
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

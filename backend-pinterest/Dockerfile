@@ -9,9 +9,9 @@ FROM python:3.12-slim AS runtime
 WORKDIR /app
 RUN addgroup --system appgroup && adduser --system --group appuser
 COPY --from=builder --chown=appuser:appgroup /app/.venv /app/.venv
-COPY --from=builder --chown=appuser:appgroup /app/src /app/src
-COPY --from=builder --chown=appuser:appgroup /app/alembic.ini /app/alembic.ini
-COPY --from=builder --chown=appuser:appgroup /app/migrations /app/migrations
+COPY --chown=appuser:appgroup src /app/src
+COPY --chown=appuser:appgroup alembic.ini /app/alembic.ini
+COPY --chown=appuser:appgroup migrations /app/migrations
 
 USER appuser
 

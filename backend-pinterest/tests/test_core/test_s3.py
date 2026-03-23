@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi import HTTPException, UploadFile
 
-from src.core.s3 import upload_image_to_s3
+from src.core.s3 import S3Service
 
 
 @pytest.fixture
@@ -26,7 +26,8 @@ async def test_upload_image_to_s3_success(mock_s3_client):
     mock_session_instance.client.return_value = mock_context_manager
 
     with patch("src.core.s3.aioboto3.Session", return_value=mock_session_instance):
-        url = await upload_image_to_s3(mock_file)
+        service = S3Service()
+        url = await service.upload_image_to_s3(mock_file)
 
     assert url.startswith("http")
     assert "pins/" in url
@@ -48,7 +49,8 @@ async def test_upload_image_to_s3_no_extension(mock_s3_client):
     mock_session_instance.client.return_value = mock_context_manager
 
     with patch("src.core.s3.aioboto3.Session", return_value=mock_session_instance):
-        url = await upload_image_to_s3(mock_file)
+        service = S3Service()
+        url = await service.upload_image_to_s3(mock_file)
 
     assert url.endswith(".jpg")
 
@@ -69,6 +71,7 @@ async def test_upload_image_to_s3_failure(mock_s3_client):
 
     with patch("src.core.s3.aioboto3.Session", return_value=mock_session_instance):
         with pytest.raises(HTTPException) as excinfo:
-            await upload_image_to_s3(mock_file)
+            service = S3Service()
+            await service.upload_image_to_s3(mock_file)
         assert excinfo.value.status_code == 500
         assert "S3" in excinfo.value.detail

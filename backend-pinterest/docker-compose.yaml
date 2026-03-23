@@ -83,6 +83,8 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    volumes:
+      - ./src:/app/src
     command: celery -A src.core.celery worker --loglevel=info
 
   celery-beat:
@@ -93,6 +95,8 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    volumes:
+      - ./src:/app/src
     command: celery -A src.core.celery beat --loglevel=info
 
   api:

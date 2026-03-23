@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.config import settings
 from src.database import get_db
 from src.users.models import UserModel
+from src.core.session import SessionService, get_session_service
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
@@ -15,6 +16,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db),
+    session_service: SessionService = Depends(get_session_service),
 ):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -28,9 +30,18 @@ async def get_current_user(
             algorithms=[settings.jwt_algorithm],
         )
         username: str | None = payload.get("sub")
-        if username is None:
+        session_id: str | None = payload.get("session_id")
+        if username is None or session_id is None:
             raise credentials_exception
     except InvalidTokenError:
+        raise credentials_exception
+
+    try:
+        user_id_str = await session_service.validate_session(session_id)
+        if not user_id_str:
+            raise credentials_exception
+        await session_service.refresh_session_ttl(session_id)
+    except Exception:
         raise credentials_exception
 
     result = await db.execute(
@@ -40,3 +51,29 @@ async def get_current_user(
     if user is None:
         raise credentials_exception
     return user
+
+
+async def logout_user(
+    token: str = Depends(oauth2_scheme),
+    session_service: SessionService = Depends(get_session_service),
+):
+    try:
+        payload = jwt.decode(
+            token,
+            settings.jwt_secret_key,
+            algorithms=[settings.jwt_algorithm],
+        )
+        session_id: str | None = payload.get("session_id")
+        if session_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        await session_service.delete_session(session_id)
+    except InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )

@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.limiter import limiter
@@ -25,6 +25,7 @@ router = APIRouter()
 @router.post("/create", status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/minute")
 async def create_new_board(
+    request: Request,
     data: BoardCreate,
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -36,6 +37,7 @@ async def create_new_board(
 @router.get("/list")
 @limiter.limit("10/minute")
 async def list_boards(
+    request: Request,
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[BoardResponse]:
@@ -43,7 +45,12 @@ async def list_boards(
 
 
 @router.get("/{board_id}/get")
-async def read_board(board_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> BoardPinsResponse:
+@limiter.limit("10/minute")
+async def read_board(
+    request: Request,
+    board_id: uuid.UUID, 
+    db: AsyncSession = Depends(get_db)
+) -> BoardPinsResponse:
     board = await get_board_by_id(db, board_id)
     if board is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Board not found")
@@ -53,6 +60,7 @@ async def read_board(board_id: uuid.UUID, db: AsyncSession = Depends(get_db)) ->
 @router.patch("/{board_id}/update")
 @limiter.limit("5/minute")
 async def patch_board(
+    request: Request,
     board_id: uuid.UUID,
     data: BoardUpdate,
     current_user: UserModel = Depends(get_current_user),
@@ -67,6 +75,7 @@ async def patch_board(
 @router.post("/{board_id}/pins/{pin_id}/add", status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/minute")
 async def add_pin(
+    request: Request,
     board_id: uuid.UUID,
     pin_id: uuid.UUID,
     current_user: UserModel = Depends(get_current_user),
@@ -81,6 +90,7 @@ async def add_pin(
 @router.delete("/{board_id}/pins/{pin_id}/remove", status_code=status.HTTP_204_NO_CONTENT)
 @limiter.limit("5/minute")
 async def remove_pin(
+    request: Request,
     board_id: uuid.UUID,
     pin_id: uuid.UUID,
     current_user: UserModel = Depends(get_current_user),

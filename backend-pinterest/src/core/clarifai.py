@@ -51,13 +51,17 @@ class ClarifaiService:
     async def search_similar_images_by_id(self, pin_id: str) -> list[str]:
         url = f"{self.base_url}/searches"
         payload = {
-            "query": {
-                "ranks": [{
-                    "annotation": {
-                        "data": {"image": {"id": str(pin_id)}}
+            "searches": [
+                {
+                    "query": {
+                        "ranks": [{
+                            "annotation": {
+                                "data": {"image": {"id": str(pin_id)}}
+                            }
+                        }]
                     }
-                }]
-            }
+                }
+            ]
         }
         
         try:

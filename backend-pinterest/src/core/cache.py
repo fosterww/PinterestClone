@@ -18,6 +18,17 @@ class CacheService:
             logger.error(f"Error getting key {key}: {e}")
             raise Exception(f"Error getting key for {key}")
 
+    async def get_pattern(self, pattern: str):
+        try:
+            keys = await self.redis.keys(pattern)
+            if not keys:
+                raise Exception()
+            values = await self.redis.mget(keys)
+            return values
+        except RedisError as e:
+            logger.error(f"Error getting keys with pattern {pattern}: {e}")
+            raise Exception(f"Error get keys with pattern {pattern}")
+
     async def set(self, key: str, value: Any, ttl: int = 3600):
         try:
             if not key:

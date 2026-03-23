@@ -11,7 +11,7 @@ from src.users.schemas import UserCreate
 
 
 @pytest.mark.asyncio
-async def test_get_current_user_success(db_session: AsyncSession):
+async def test_get_current_user_success(db_session: AsyncSession, mock_session_service):
     user_data = UserCreate(
         username="auth_core_user",
         email="auth_core@example.com",
@@ -19,8 +19,8 @@ async def test_get_current_user_success(db_session: AsyncSession):
     )
     created_user = await register_user(db_session, user_data)
 
-    token = create_access_token({"sub": created_user.username})
-    user = await get_current_user(token=token, db=db_session)
+    token = create_access_token({"sub": created_user.username, "session_id": "mock_session_id"})
+    user = await get_current_user(token=token, db=db_session, session_service=mock_session_service)
 
     assert user is not None
     assert user.id == created_user.id

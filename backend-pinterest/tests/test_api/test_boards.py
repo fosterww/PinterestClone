@@ -37,7 +37,7 @@ async def test_boards_flow(client: AsyncClient, fake_image: bytes, db_session: A
     assert board is not None
     board_id = board.id
     
-    with patch("src.pins.router.upload_image_to_s3", new_callable=AsyncMock) as mock_s3:
+    with patch("src.core.s3.S3Service.upload_image_to_s3", new_callable=AsyncMock) as mock_s3:
         mock_s3.return_value = "http://fake.com/image.jpg"
         pin_response = await client.post(
             "/api/v1/pins/", 

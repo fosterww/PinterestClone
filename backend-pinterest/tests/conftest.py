@@ -13,7 +13,10 @@ from sqlalchemy.ext.asyncio import (
 
 from src.database import Base, get_db
 from src.main import app
+from src.core.limiter import limiter
+from src.core.session import get_session_service
 
+limiter.enabled = False
 
 @pytest_asyncio.fixture(scope="session")
 async def engine() -> AsyncGenerator[AsyncEngine, None]:
@@ -41,12 +44,30 @@ async def db_session(sessionmaker: async_sessionmaker[AsyncSession]) -> AsyncGen
         await session.rollback()
 
 
+@pytest.fixture
+def mock_session_service():
+    class MockSessionService:
+        async def create_session(self, user_id):
+            return "mock_session_id"
+        async def validate_session(self, session_id):
+            return "mock_user_id"
+        async def delete_session(self, session_id):
+            pass
+        async def refresh_session_ttl(self, session_id):
+            pass
+    return MockSessionService()
+
 @pytest_asyncio.fixture
-async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
+async def client(db_session: AsyncSession, mock_session_service) -> AsyncGenerator[AsyncClient, None]:
+
     def override_get_db():
         yield db_session
 
+    def override_get_session_service():
+        return mock_session_service
+
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_session_service] = override_get_session_service
     
     async with AsyncClient(
         transport=ASGITransport(app=app), 

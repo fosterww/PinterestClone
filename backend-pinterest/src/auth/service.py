@@ -6,6 +6,8 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.security import hash_password, verify_password, create_access_token
+from src.core.session import SessionService
+from src.core.auth import oauth2_scheme
 from src.core.logger import logger
 from src.users.models import UserModel
 from src.users.schemas import UserCreate
@@ -72,5 +74,17 @@ async def authenticate_user(
         )
 
 
-def create_user_token(user: UserModel) -> str:
-    return create_access_token({"sub": user.username})
+async def logout_user(token: str, session_service: SessionService):
+    try:
+        session_id = oauth2_scheme(token)
+        await session_service.delete_session(session_id)
+    except SQLAlchemyError:
+        logger.error("Database error while logging out user")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error during logout",
+        )
+
+
+def create_user_token(user: UserModel, session_id: str) -> str:
+    return create_access_token({"sub": user.username, "session_id": session_id})
