@@ -2,7 +2,7 @@ import { apiClient } from "./clients";
 import type { Pin } from "../types/api";
 
 export async function getPins(offset: number, limit: number): Promise<Pin[]> {
-    const response = await apiClient.get<Pin[]>("/pins/list", {
+    const response = await apiClient.get<Pin[]>("/pins", {
         params: {
             offset,
             limit,
@@ -25,7 +25,7 @@ export async function createPin(data: {
     if (data.link_url) formData.append("link_url", data.link_url);
     (data.tags ?? []).forEach(tag => formData.append("tags", tag));
 
-    const response = await apiClient.post<Pin>("/pins/create", formData, {
+    const response = await apiClient.post<Pin>("/pins", formData, {
         headers: { "Content-Type": undefined },
     });
     return response.data;

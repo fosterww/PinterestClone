@@ -11,7 +11,7 @@ from src.users.schemas import UserUpdate, UserResponse
 router = APIRouter()
 
 
-@router.get("/me")
+@router.get("/")
 @limiter.limit("10/minute")
 async def read_current_user(
     request: Request,
@@ -20,7 +20,7 @@ async def read_current_user(
     return current_user
 
 
-@router.patch("/me")
+@router.patch("/")
 @limiter.limit("5/minute")
 async def update_current_user(
     request: Request,

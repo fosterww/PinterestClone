@@ -26,7 +26,7 @@ from src.pins.task import index_image_task, delete_image_task
 
 router = APIRouter()
 
-@router.post("/create", status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/minute")
 async def create_new_pin(
     request: Request,
@@ -58,7 +58,7 @@ async def create_new_pin(
     return pin
 
 
-@router.get("/list")
+@router.get("/")
 @limiter.limit("10/minute")
 async def list_pins(
     request: Request,
@@ -69,7 +69,7 @@ async def list_pins(
     return await get_pins(db, offset, limit)
 
 
-@router.get("/get/{pin_id}")
+@router.get("/{pin_id}")
 @limiter.limit("10/minute")
 async def read_pin(
     request: Request,
@@ -79,7 +79,7 @@ async def read_pin(
     return await get_pin_by_id(db, pin_id)
 
 
-@router.patch("/update/{pin_id}")
+@router.patch("/{pin_id}")
 @limiter.limit("5/minute")
 async def patch_pin(
     request: Request,
@@ -92,7 +92,7 @@ async def patch_pin(
     return await update_pin(db, pin, data, current_user)
 
 
-@router.delete("/delete/{pin_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{pin_id}", status_code=status.HTTP_204_NO_CONTENT)
 @limiter.limit("5/minute")
 async def remove_pin(
     request: Request,

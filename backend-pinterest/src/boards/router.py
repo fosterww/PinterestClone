@@ -22,7 +22,7 @@ from src.pins.service import get_pin_by_id
 router = APIRouter()
 
 
-@router.post("/create", status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/minute")
 async def create_new_board(
     request: Request,
@@ -34,7 +34,7 @@ async def create_new_board(
     return board
 
 
-@router.get("/list")
+@router.get("/")
 @limiter.limit("10/minute")
 async def list_boards(
     request: Request,
@@ -44,7 +44,7 @@ async def list_boards(
     return await get_user_boards(db, current_user.id)
 
 
-@router.get("/{board_id}/get")
+@router.get("/{board_id}")
 @limiter.limit("10/minute")
 async def read_board(
     request: Request,
@@ -57,7 +57,7 @@ async def read_board(
     return board
 
 
-@router.patch("/{board_id}/update")
+@router.patch("/{board_id}")
 @limiter.limit("5/minute")
 async def patch_board(
     request: Request,
@@ -72,7 +72,7 @@ async def patch_board(
     return await update_board(db, board, data, current_user)
 
 
-@router.post("/{board_id}/pins/{pin_id}/add", status_code=status.HTTP_201_CREATED)
+@router.post("/{board_id}/pins/{pin_id}", status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/minute")
 async def add_pin(
     request: Request,
@@ -87,7 +87,7 @@ async def add_pin(
     return pin
 
 
-@router.delete("/{board_id}/pins/{pin_id}/remove", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{board_id}/pins/{pin_id}", status_code=status.HTTP_204_NO_CONTENT)
 @limiter.limit("5/minute")
 async def remove_pin(
     request: Request,
