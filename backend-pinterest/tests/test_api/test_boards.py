@@ -35,7 +35,7 @@ async def test_boards_flow(
     headers = {"Authorization": f"Bearer {token}"}
 
     response = await client.post(
-        "/api/v1/boards/create",
+        "/api/v1/boards/",
         json={"title": "My Travel Docs", "description": "Visits and more"},
         headers=headers,
     )
@@ -62,25 +62,25 @@ async def test_boards_flow(
         pin_id = pin_response.json()["id"]
 
     response = await client.post(
-        f"/api/v1/boards/{board_id}/pins/{pin_id}/add", headers=headers
+        f"/api/v1/boards/{board_id}/pins/{pin_id}", headers=headers
     )
     assert response.status_code == 201
 
     db_session.expire_all()
 
-    response = await client.get(f"/api/v1/boards/{board_id}/get")
+    response = await client.get(f"/api/v1/boards/{board_id}")
     assert response.status_code == 200
 
     data = response.json()
     assert "pins" in data
     assert any(p["id"] == pin_id for p in data["pins"])
 
-    response = await client.get("/api/v1/boards/list", headers=headers)
+    response = await client.get("/api/v1/boards/", headers=headers)
     assert response.status_code == 200
     assert len(response.json()) > 0
 
     response = await client.patch(
-        f"/api/v1/boards/{board_id}/update",
+        f"/api/v1/boards/{board_id}",
         json={"title": "Europe Trip"},
         headers=headers,
     )
@@ -88,12 +88,12 @@ async def test_boards_flow(
     assert response.json()["title"] == "Europe Trip"
 
     response = await client.delete(
-        f"/api/v1/boards/{board_id}/pins/{pin_id}/remove", headers=headers
+        f"/api/v1/boards/{board_id}/pins/{pin_id}", headers=headers
     )
     assert response.status_code == 204
 
     db_session.expire_all()
 
-    response = await client.get(f"/api/v1/boards/{board_id}/get")
+    response = await client.get(f"/api/v1/boards/{board_id}")
     data = response.json()
     assert all(p["id"] != pin_id for p in data["pins"])

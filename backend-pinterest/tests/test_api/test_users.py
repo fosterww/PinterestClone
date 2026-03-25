@@ -4,7 +4,7 @@ from httpx import AsyncClient
 
 @pytest.mark.asyncio
 async def test_get_me_unauthorized(client: AsyncClient):
-    response = await client.get("/api/v1/users/me")
+    response = await client.get("/api/v1/users/")
     assert response.status_code == 401
 
 
@@ -27,7 +27,7 @@ async def test_get_me_success(client: AsyncClient):
     token = login_response.json()["access_token"]
 
     response = await client.get(
-        "/api/v1/users/me", headers={"Authorization": f"Bearer {token}"}
+        "/api/v1/users/", headers={"Authorization": f"Bearer {token}"}
     )
     assert response.status_code == 200
     data = response.json()
@@ -54,7 +54,7 @@ async def test_patch_me_success(client: AsyncClient):
     token = login_response.json()["access_token"]
 
     response = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/users/",
         json={"full_name": "Test User", "bio": "A test bio"},
         headers={"Authorization": f"Bearer {token}"},
     )
