@@ -5,7 +5,7 @@ from httpx import AsyncClient
 @pytest.mark.asyncio
 async def test_register_success(client: AsyncClient):
     response = await client.post(
-        "/api/v1/auth/register",
+        "/api/v2/auth/register",
         json={
             "username": "test",
             "email": "test_register@example.com",
@@ -18,7 +18,7 @@ async def test_register_success(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_register_duplicate_email(client: AsyncClient):
     response = await client.post(
-        "/api/v1/auth/register",
+        "/api/v2/auth/register",
         json={
             "username": "test",
             "email": "test_register@example.com",
@@ -27,7 +27,7 @@ async def test_register_duplicate_email(client: AsyncClient):
     )
     assert response.status_code == 201
     response = await client.post(
-        "/api/v1/auth/register",
+        "/api/v2/auth/register",
         json={
             "username": "test",
             "email": "test_register@example.com",
@@ -42,7 +42,7 @@ async def test_register_duplicate_email(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_login_success(client: AsyncClient):
     register_response = await client.post(
-        "/api/v1/auth/register",
+        "/api/v2/auth/register",
         json={
             "username": "test",
             "email": "test_login@example.com",
@@ -51,7 +51,7 @@ async def test_login_success(client: AsyncClient):
     )
     assert register_response.status_code == 201
     login_response = await client.post(
-        "/api/v1/auth/login",
+        "/api/v2/auth/login",
         data={"username": "test", "password": "password"},
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
@@ -64,7 +64,7 @@ async def test_login_success(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_login_invalid_credentials(client: AsyncClient):
     register_response = await client.post(
-        "/api/v1/auth/register",
+        "/api/v2/auth/register",
         json={
             "username": "test",
             "email": "test_login@example.com",
@@ -73,7 +73,7 @@ async def test_login_invalid_credentials(client: AsyncClient):
     )
     assert register_response.status_code == 201
     login_response = await client.post(
-        "/api/v1/auth/login",
+        "/api/v2/auth/login",
         data={"username": "test", "password": "wrong_password"},
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )

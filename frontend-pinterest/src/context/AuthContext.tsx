@@ -30,6 +30,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsAuthenticated(false);
       }
     }
+
+    const handleForcedLogout = () => setIsAuthenticated(false);
+    window.addEventListener("auth:logout", handleForcedLogout);
+    return () => window.removeEventListener("auth:logout", handleForcedLogout);
   }, []);
 
   const handleLogin = async (...args: Parameters<typeof login>) => {

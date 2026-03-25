@@ -51,6 +51,10 @@ class PinModel(Base):
         server_default=func.now(), onupdate=func.now()
     )
 
+    likes: Mapped[list["PinLikeModel"]] = relationship(
+        "PinLikeModel", back_populates="pin"
+    )
+    likes_count: Mapped[int] = mapped_column(server_default="0")
     user: Mapped["UserModel"] = relationship("UserModel", back_populates="pins")
     boards: Mapped[list["BoardModel"]] = relationship(
         "BoardModel", secondary=board_pin_association, back_populates="pins"
@@ -94,3 +98,18 @@ class TagModel(Base):
     pins: Mapped[list["PinModel"]] = relationship(
         "PinModel", secondary=pin_tag_association, back_populates="tags"
     )
+
+
+class PinLikeModel(Base):
+    __tablename__ = "pin_likes"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    pin_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("pins.id"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(), onupdate=func.now()
+    )
+
+    pin: Mapped["PinModel"] = relationship("PinModel", back_populates="likes")
+    user: Mapped["UserModel"] = relationship("UserModel", back_populates="likes")

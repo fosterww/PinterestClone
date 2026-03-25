@@ -18,7 +18,7 @@ async def test_boards_flow(
     client: AsyncClient, fake_image: bytes, db_session: AsyncSession
 ):
     await client.post(
-        "/api/v1/auth/register",
+        "/api/v2/auth/register",
         json={
             "username": "board_tester",
             "email": "board_tester@example.com",
@@ -26,7 +26,7 @@ async def test_boards_flow(
         },
     )
     login_response = await client.post(
-        "/api/v1/auth/login",
+        "/api/v2/auth/login",
         data={"username": "board_tester", "password": "password"},
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
@@ -35,7 +35,7 @@ async def test_boards_flow(
     headers = {"Authorization": f"Bearer {token}"}
 
     response = await client.post(
-        "/api/v1/boards/",
+        "/api/v2/boards/",
         json={"title": "My Travel Docs", "description": "Visits and more"},
         headers=headers,
     )
@@ -53,7 +53,7 @@ async def test_boards_flow(
     ) as mock_s3:
         mock_s3.return_value = "http://fake.com/image.jpg"
         pin_response = await client.post(
-            "/api/v1/pins/",
+            "/api/v2/pins/",
             data={"title": "Paris"},
             files={"image": ("test.jpg", io.BytesIO(fake_image), "image/jpeg")},
             headers=headers,
@@ -62,25 +62,25 @@ async def test_boards_flow(
         pin_id = pin_response.json()["id"]
 
     response = await client.post(
-        f"/api/v1/boards/{board_id}/pins/{pin_id}", headers=headers
+        f"/api/v2/boards/{board_id}/pins/{pin_id}", headers=headers
     )
     assert response.status_code == 201
 
     db_session.expire_all()
 
-    response = await client.get(f"/api/v1/boards/{board_id}")
+    response = await client.get(f"/api/v2/boards/{board_id}")
     assert response.status_code == 200
 
     data = response.json()
     assert "pins" in data
     assert any(p["id"] == pin_id for p in data["pins"])
 
-    response = await client.get("/api/v1/boards/", headers=headers)
+    response = await client.get("/api/v2/boards/", headers=headers)
     assert response.status_code == 200
     assert len(response.json()) > 0
 
     response = await client.patch(
-        f"/api/v1/boards/{board_id}",
+        f"/api/v2/boards/{board_id}",
         json={"title": "Europe Trip"},
         headers=headers,
     )
@@ -88,12 +88,12 @@ async def test_boards_flow(
     assert response.json()["title"] == "Europe Trip"
 
     response = await client.delete(
-        f"/api/v1/boards/{board_id}/pins/{pin_id}", headers=headers
+        f"/api/v2/boards/{board_id}/pins/{pin_id}", headers=headers
     )
     assert response.status_code == 204
 
     db_session.expire_all()
 
-    response = await client.get(f"/api/v1/boards/{board_id}")
+    response = await client.get(f"/api/v2/boards/{board_id}")
     data = response.json()
     assert all(p["id"] != pin_id for p in data["pins"])

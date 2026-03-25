@@ -69,7 +69,9 @@ async def authenticate_user(
             return None
         return user
     except SQLAlchemyError:
-        logger.error(f"Database error while authenticating user: {username}")
+        logger.error(
+            f"Database error while authenticating user: {username}", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database error during authentication",

@@ -13,7 +13,7 @@ def fake_image():
 async def test_pin_crud_flow(client: AsyncClient, fake_image: bytes, mock_celery_tasks):
     mock_index_task, mock_delete_task = mock_celery_tasks
     await client.post(
-        "/api/v1/auth/register",
+        "/api/v2/auth/register",
         json={
             "username": "pin_tester",
             "email": "pin_tester@example.com",
@@ -21,7 +21,7 @@ async def test_pin_crud_flow(client: AsyncClient, fake_image: bytes, mock_celery
         },
     )
     login_response = await client.post(
-        "/api/v1/auth/login",
+        "/api/v2/auth/login",
         data={"username": "pin_tester", "password": "password"},
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
@@ -35,7 +35,7 @@ async def test_pin_crud_flow(client: AsyncClient, fake_image: bytes, mock_celery
         mock_s3.return_value = "http://fake-s3-url.com/image.jpg"
 
         response = await client.post(
-            "/api/v1/pins/",
+            "/api/v2/pins/",
             data={
                 "title": "My Test Pin",
                 "description": "Desc",
@@ -54,25 +54,25 @@ async def test_pin_crud_flow(client: AsyncClient, fake_image: bytes, mock_celery
         args, _ = mock_index_task.call_args
         assert args[0] == pin_id
 
-    response = await client.get("/api/v1/pins/")
+    response = await client.get("/api/v2/pins/")
     assert response.status_code == 200
     assert len(response.json()) > 0
 
-    response = await client.get(f"/api/v1/pins/{pin_id}")
+    response = await client.get(f"/api/v2/pins/{pin_id}")
     assert response.status_code == 200
     assert response.json()["id"] == pin_id
 
     response = await client.patch(
-        f"/api/v1/pins/{pin_id}", json={"title": "Updated Title"}, headers=headers
+        f"/api/v2/pins/{pin_id}", json={"title": "Updated Title"}, headers=headers
     )
     assert response.status_code == 200
     assert response.json()["title"] == "Updated Title"
 
-    response = await client.delete(f"/api/v1/pins/{pin_id}", headers=headers)
+    response = await client.delete(f"/api/v2/pins/{pin_id}", headers=headers)
     assert response.status_code == 204
     mock_delete_task.assert_called_once_with(pin_id)
 
-    response = await client.get(f"/api/v1/pins/{pin_id}")
+    response = await client.get(f"/api/v2/pins/{pin_id}")
     assert response.status_code == 404
     assert response.json()["detail"] == "Pin not found"
 
@@ -80,7 +80,7 @@ async def test_pin_crud_flow(client: AsyncClient, fake_image: bytes, mock_celery
 @pytest.mark.asyncio
 async def test_pin_create_with_tags(client: AsyncClient, fake_image: bytes):
     await client.post(
-        "/api/v1/auth/register",
+        "/api/v2/auth/register",
         json={
             "username": "pin_tag_tester",
             "email": "pin_tag_tester@example.com",
@@ -88,7 +88,7 @@ async def test_pin_create_with_tags(client: AsyncClient, fake_image: bytes):
         },
     )
     login_response = await client.post(
-        "/api/v1/auth/login",
+        "/api/v2/auth/login",
         data={"username": "pin_tag_tester", "password": "password"},
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
@@ -102,7 +102,7 @@ async def test_pin_create_with_tags(client: AsyncClient, fake_image: bytes):
         mock_s3.return_value = "http://fake-s3-url.com/image.jpg"
 
         response = await client.post(
-            "/api/v1/pins/",
+            "/api/v2/pins/",
             data={"title": "Tagged Pin", "tags": ["nature", "travel"]},
             files={"image": ("test.jpg", io.BytesIO(fake_image), "image/jpeg")},
             headers=headers,
@@ -118,7 +118,7 @@ async def test_pin_create_with_tags(client: AsyncClient, fake_image: bytes):
 @pytest.mark.asyncio
 async def test_get_related_pins(client: AsyncClient, fake_image: bytes):
     await client.post(
-        "/api/v1/auth/register",
+        "/api/v2/auth/register",
         json={
             "username": "pin_related_tester",
             "email": "pin_related@example.com",
@@ -126,7 +126,7 @@ async def test_get_related_pins(client: AsyncClient, fake_image: bytes):
         },
     )
     login_response = await client.post(
-        "/api/v1/auth/login",
+        "/api/v2/auth/login",
         data={"username": "pin_related_tester", "password": "password"},
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
@@ -138,19 +138,19 @@ async def test_get_related_pins(client: AsyncClient, fake_image: bytes):
     ) as mock_s3:
         mock_s3.return_value = "http://fake-s3.com/img.jpg"
         p1 = await client.post(
-            "/api/v1/pins/",
+            "/api/v2/pins/",
             data={"title": "Pin 1", "tags": ["art", "cool"]},
             files={"image": ("test.jpg", io.BytesIO(fake_image), "image/jpeg")},
             headers=headers,
         )
         p2 = await client.post(
-            "/api/v1/pins/",
+            "/api/v2/pins/",
             data={"title": "Pin 2", "tags": ["art"]},
             files={"image": ("test.jpg", io.BytesIO(fake_image), "image/jpeg")},
             headers=headers,
         )
         p3 = await client.post(
-            "/api/v1/pins/",
+            "/api/v2/pins/",
             data={"title": "Pin 3", "tags": ["cool"]},
             files={"image": ("test.jpg", io.BytesIO(fake_image), "image/jpeg")},
             headers=headers,
@@ -173,10 +173,212 @@ async def test_get_related_pins(client: AsyncClient, fake_image: bytes):
         mock_clarifai.return_value = [p3_id]
         mock_cache_get.return_value = None
 
-        response = await client.get(f"/api/v1/pins/{p1_id}/related")
+        response = await client.get(f"/api/v2/pins/{p1_id}/related")
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 2
         related_ids = {p["id"] for p in data}
         assert p2_id in related_ids
         assert p3_id in related_ids
+
+
+async def _register_and_login(client: AsyncClient, username: str, email: str) -> dict:
+    await client.post(
+        "/api/v2/auth/register",
+        json={"username": username, "email": email, "password": "password"},
+    )
+    login = await client.post(
+        "/api/v2/auth/login",
+        data={"username": username, "password": "password"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    token = login.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+async def _create_pin(
+    client: AsyncClient,
+    headers: dict,
+    title: str,
+    tags: list | None = None,
+    fake_image: bytes = b"img",
+) -> dict:
+    data: dict = {"title": title}
+    if tags:
+        data["tags"] = tags
+    with patch("src.core.s3.S3Service.upload_image_to_s3", new_callable=AsyncMock) as m:
+        m.return_value = "http://fake-s3.com/img.jpg"
+        response = await client.post(
+            "/api/v2/pins/",
+            data=data,
+            files={"image": ("test.jpg", io.BytesIO(fake_image), "image/jpeg")},
+            headers=headers,
+        )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+@pytest.mark.asyncio
+async def test_api_like_pin_success(client: AsyncClient, fake_image: bytes):
+    headers = await _register_and_login(client, "like_api_user", "like_api@example.com")
+    pin = await _create_pin(client, headers, "Like Test Pin", fake_image=fake_image)
+
+    response = await client.post(f"/api/v2/pins/{pin['id']}/like", headers=headers)
+    assert response.status_code == 200
+    assert response.json()["likes_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_api_like_pin_duplicate_returns_409(
+    client: AsyncClient, fake_image: bytes
+):
+    headers = await _register_and_login(client, "like_dup_user", "like_dup@example.com")
+    pin = await _create_pin(client, headers, "Dup Like Pin", fake_image=fake_image)
+
+    await client.post(f"/api/v2/pins/{pin['id']}/like", headers=headers)
+    response = await client.post(f"/api/v2/pins/{pin['id']}/like", headers=headers)
+    assert response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_api_unlike_pin_success(client: AsyncClient, fake_image: bytes):
+    headers = await _register_and_login(
+        client, "unlike_api_user", "unlike_api@example.com"
+    )
+    pin = await _create_pin(client, headers, "Unlike Test Pin", fake_image=fake_image)
+
+    await client.post(f"/api/v2/pins/{pin['id']}/like", headers=headers)
+    response = await client.post(f"/api/v2/pins/{pin['id']}/unlike", headers=headers)
+    assert response.status_code == 200
+    assert response.json()["likes_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_api_unlike_pin_not_liked_returns_404(
+    client: AsyncClient, fake_image: bytes
+):
+    headers = await _register_and_login(
+        client, "unlike_nf_user", "unlike_nf@example.com"
+    )
+    pin = await _create_pin(client, headers, "No Like Pin", fake_image=fake_image)
+
+    response = await client.post(f"/api/v2/pins/{pin['id']}/unlike", headers=headers)
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_api_like_requires_auth(client: AsyncClient, fake_image: bytes):
+    headers = await _register_and_login(
+        client, "like_auth_user", "like_auth@example.com"
+    )
+    pin = await _create_pin(client, headers, "Auth Required Pin", fake_image=fake_image)
+
+    response = await client.post(f"/api/v2/pins/{pin['id']}/like")
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_api_search_pins_by_title(client: AsyncClient, fake_image: bytes):
+    headers = await _register_and_login(
+        client, "search_user", "search_user@example.com"
+    )
+    await _create_pin(client, headers, "Aurora Borealis", fake_image=fake_image)
+    await _create_pin(client, headers, "Desert Sand", fake_image=fake_image)
+    await _create_pin(client, headers, "Aurora Valley", fake_image=fake_image)
+
+    response = await client.get("/api/v2/pins/?search=Aurora")
+    assert response.status_code == 200
+    titles = {p["title"] for p in response.json()}
+    assert "Aurora Borealis" in titles
+    assert "Aurora Valley" in titles
+    assert "Desert Sand" not in titles
+
+
+@pytest.mark.asyncio
+async def test_api_filter_pins_by_tag(client: AsyncClient, fake_image: bytes):
+    headers = await _register_and_login(
+        client, "tag_filter_user", "tag_filter@example.com"
+    )
+    await _create_pin(
+        client, headers, "Forest Walk", tags=["forest"], fake_image=fake_image
+    )
+    await _create_pin(
+        client, headers, "City Lights", tags=["city"], fake_image=fake_image
+    )
+    await _create_pin(
+        client,
+        headers,
+        "Forest City Blend",
+        tags=["forest", "city"],
+        fake_image=fake_image,
+    )
+
+    response = await client.get("/api/v2/pins/?tags=forest")
+    assert response.status_code == 200
+    titles = {p["title"] for p in response.json()}
+    assert "Forest Walk" in titles
+    assert "Forest City Blend" in titles
+    assert "City Lights" not in titles
+
+
+@pytest.mark.asyncio
+async def test_api_filter_pins_by_popularity(client: AsyncClient, fake_image: bytes):
+    headers = await _register_and_login(client, "pop_user", "pop_user@example.com")
+    headers2 = await _register_and_login(client, "pop_user2", "pop_user2@example.com")
+    low = await _create_pin(client, headers, "Low Pop", fake_image=fake_image)
+    high = await _create_pin(client, headers, "High Pop", fake_image=fake_image)
+
+    await client.post(f"/api/v2/pins/{high['id']}/like", headers=headers)
+    await client.post(f"/api/v2/pins/{high['id']}/like", headers=headers2)
+
+    response = await client.get("/api/v2/pins/?popularity=most_popular")
+    assert response.status_code == 200
+    ids = [p["id"] for p in response.json()]
+    assert ids.index(high["id"]) < ids.index(low["id"])
+
+
+@pytest.mark.asyncio
+async def test_api_filter_pins_created_at_newest(
+    client: AsyncClient, fake_image: bytes
+):
+    response = await client.get("/api/v2/pins/?created_at=newest")
+    assert response.status_code == 200
+    pins = response.json()
+    if len(pins) >= 2 and "created_at" in pins[0]:
+        from datetime import datetime
+
+        dates = [datetime.fromisoformat(p["created_at"]) for p in pins]
+        assert dates[0] >= dates[-1]
+
+
+@pytest.mark.asyncio
+async def test_api_filter_pins_created_at_oldest(
+    client: AsyncClient, fake_image: bytes
+):
+    response = await client.get("/api/v2/pins/?created_at=oldest")
+    assert response.status_code == 200
+    pins = response.json()
+    if len(pins) >= 2 and "created_at" in pins[0]:
+        from datetime import datetime
+
+        dates = [datetime.fromisoformat(p["created_at"]) for p in pins]
+        assert dates[0] <= dates[-1]
+
+
+@pytest.mark.asyncio
+async def test_api_search_and_tag_combined(client: AsyncClient, fake_image: bytes):
+    headers = await _register_and_login(client, "combo_user", "combo_user@example.com")
+    await _create_pin(
+        client, headers, "River Sunset", tags=["water"], fake_image=fake_image
+    )
+    await _create_pin(
+        client, headers, "River Storm", tags=["storm"], fake_image=fake_image
+    )
+    await _create_pin(
+        client, headers, "Lake Sunset", tags=["water"], fake_image=fake_image
+    )
+
+    response = await client.get("/api/v2/pins/?search=River&tags=water")
+    assert response.status_code == 200
+    titles = {p["title"] for p in response.json()}
+    assert titles == {"River Sunset"}

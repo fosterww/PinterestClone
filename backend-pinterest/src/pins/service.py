@@ -1,4 +1,5 @@
 import uuid
+from typing import List
 
 from fastapi import HTTPException, status
 from sqlalchemy import select, func
@@ -8,9 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.logger import logger
 from src.core.cache import CacheService
-from src.boards.models import PinModel, pin_tag_association
+from src.boards.models import PinModel, pin_tag_association, TagModel, PinLikeModel
 from src.users.models import UserModel
-from src.pins.schemas import PinCreate, PinUpdate, PinResponse
+from src.pins.schemas import PinCreate, PinUpdate, PinResponse, CreatedAt, Popularity
 from src.tags.service import get_or_create_tag
 
 
@@ -53,22 +54,127 @@ async def create_pin(
 
 
 async def get_pins(
-    db: AsyncSession, offset: int = 0, limit: int = 20
+    db: AsyncSession,
+    offset: int = 0,
+    limit: int = 20,
+    search: str | None = None,
+    tags: list[str] = [],
+    created_at: CreatedAt | None = None,
+    popularity: Popularity | None = None,
 ) -> list[PinModel]:
     try:
-        result = await db.execute(
-            select(PinModel)
-            .order_by(PinModel.created_at.desc())
-            .options(selectinload(PinModel.tags))
-            .offset(offset)
-            .limit(limit)
-        )
+        query = select(PinModel).options(selectinload(PinModel.tags))
+
+        if search:
+            query = query.where(PinModel.title.icontains(search))
+
+        if tags:
+            query = query.where(PinModel.tags.any(TagModel.name.in_(tags)))
+
+        if created_at == CreatedAt.newest:
+            query = query.order_by(PinModel.created_at.desc())
+        elif created_at == CreatedAt.oldest:
+            query = query.order_by(PinModel.created_at.asc())
+
+        if popularity == Popularity.most_popular:
+            query = query.order_by(PinModel.likes_count.desc())
+        elif popularity == Popularity.least_popular:
+            query = query.order_by(PinModel.likes_count.asc())
+
+        result = await db.execute(query.offset(offset).limit(limit))
         return list(result.scalars().all())
     except SQLAlchemyError:
         logger.error(f"Database error while fetching pins: {offset}, {limit}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database error while fetching pins",
+        )
+
+
+async def get_user_pins(username: str, db: AsyncSession) -> List[PinModel]:
+    try:
+        result = await db.execute(
+            select(PinModel)
+            .join(UserModel)
+            .where(UserModel.username == username)
+            .options(selectinload(PinModel.tags))
+            .order_by(PinModel.created_at.desc())
+        )
+        return list(result.scalars().all())
+    except SQLAlchemyError:
+        logger.error(f"Database error while fetching user pins: {username}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error while fetching user pins",
+        )
+
+
+async def like_pin(db: AsyncSession, pin_id: uuid.UUID, user_id: uuid.UUID) -> PinModel:
+    try:
+        result = await db.execute(
+            select(PinLikeModel)
+            .where(PinLikeModel.pin_id == pin_id)
+            .where(PinLikeModel.user_id == user_id)
+        )
+        existing_like = result.scalar_one_or_none()
+        if existing_like is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="Pin like already exists"
+            )
+        pin = await get_pin_by_id(db, pin_id)
+        pin.likes_count += 1
+        pin_like = PinLikeModel(pin_id=pin_id, user_id=user_id)
+        db.add(pin_like)
+        await db.flush()
+        result = await db.execute(
+            select(PinModel)
+            .where(PinModel.id == pin_id)
+            .options(selectinload(PinModel.tags))
+        )
+        return result.scalar_one()
+    except HTTPException:
+        raise
+    except SQLAlchemyError:
+        await db.rollback()
+        logger.error(f"Database error while liking pin: {pin_id}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error while liking pin",
+        )
+
+
+async def unlike_pin(
+    db: AsyncSession, pin_id: uuid.UUID, user_id: uuid.UUID
+) -> PinModel:
+    try:
+        result = await db.execute(
+            select(PinLikeModel)
+            .where(PinLikeModel.pin_id == pin_id)
+            .where(PinLikeModel.user_id == user_id)
+        )
+        pin_like = result.scalar_one_or_none()
+        if pin_like is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Pin like not found"
+            )
+        pin = await get_pin_by_id(db, pin_id)
+        pin.likes_count = max(0, pin.likes_count - 1)
+        await db.delete(pin_like)
+        await db.flush()
+        result = await db.execute(
+            select(PinModel)
+            .where(PinModel.id == pin_id)
+            .options(selectinload(PinModel.tags))
+        )
+        return result.scalar_one()
+    except HTTPException:
+        raise
+    except SQLAlchemyError:
+        await db.rollback()
+        logger.error(f"Database error while unliking pin: {pin_id}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error while unliking pin",
         )
 
 

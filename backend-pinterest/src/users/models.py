@@ -10,7 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.database import Base
 
 if TYPE_CHECKING:
-    from src.boards.models import BoardModel, PinModel
+    from src.boards.models import BoardModel, PinModel, PinLikeModel
 
 
 class UserModel(Base):
@@ -32,3 +32,6 @@ class UserModel(Base):
         "BoardModel", back_populates="user"
     )
     pins: Mapped[list["PinModel"]] = relationship("PinModel", back_populates="user")
+    likes: Mapped[list["PinLikeModel"]] = relationship(
+        "PinLikeModel", back_populates="user"
+    )

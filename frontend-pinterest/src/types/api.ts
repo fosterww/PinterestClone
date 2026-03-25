@@ -1,4 +1,6 @@
 export type Visibility = "public" | "private";
+export type Popularity = "Most Popular" | "Least Popular";
+export type CreatedAt = "Newest" | "Oldest";
 
 export interface Tag {
     id: string;
@@ -13,6 +15,13 @@ export interface Pin {
     image_url: string;
     link_url?: string;
     tags: Tag[];
+}
+
+export interface PinFilters {
+    search?: string;
+    tags?: string[];
+    popularity?: Popularity;
+    created_at?: CreatedAt;
 }
 
 export interface User {

@@ -5,6 +5,8 @@ import { PinGrid } from './components/PinGrid'
 import { useAuth } from './context/AuthContext'
 import { LoginForm } from './components/LoginForm'
 import { CreatePinModal } from './components/CreatePinModal'
+import { SearchFilters } from './components/SearchFilters'
+import type { PinFilters } from './types/api'
 
 function SearchIcon() {
   return (
@@ -19,10 +21,11 @@ function App() {
   const { isAuthenticated, logout } = useAuth();
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
+  const [filters, setFilters] = useState<PinFilters>({});
 
   const { data: pins, isLoading, isError } = useQuery({
-    queryKey: ["pins"],
-    queryFn: () => getPins(0, 100),
+    queryKey: ["pins", filters],
+    queryFn: () => getPins(filters, 0, 100),
     enabled: isAuthenticated,
     staleTime: 30_000,
   });
@@ -49,8 +52,18 @@ function App() {
 
         <div className="header-search">
           <span className="header-search-icon"><SearchIcon /></span>
-          <input type="search" placeholder="Search" aria-label="Search" />
+          <input
+            type="search"
+            placeholder="Search"
+            aria-label="Search"
+            value={filters.search ?? ""}
+            onChange={(e) =>
+              setFilters((prev) => ({ ...prev, search: e.target.value || undefined }))
+            }
+          />
         </div>
+
+        <SearchFilters filters={filters} onChange={setFilters} />
 
         <button
           className="btn btn-red"

@@ -25,7 +25,7 @@ app.add_middleware(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
-app.include_router(user_router, prefix="/api/v1/users", tags=["users"])
-app.include_router(pin_router, prefix="/api/v1/pins", tags=["pins"])
-app.include_router(board_router, prefix="/api/v1/boards", tags=["boards"])
+app.include_router(auth_router, prefix="/api/v2/auth", tags=["auth"])
+app.include_router(user_router, prefix="/api/v2/users", tags=["users"])
+app.include_router(pin_router, prefix="/api/v2/pins", tags=["pins"])
+app.include_router(board_router, prefix="/api/v2/boards", tags=["boards"])
