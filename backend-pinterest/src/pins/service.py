@@ -13,6 +13,7 @@ from src.users.models import UserModel
 from src.pins.schemas import PinCreate, PinUpdate, PinResponse
 from src.tags.service import get_or_create_tag
 
+
 async def create_pin(
     db: AsyncSession, owner: UserModel, data: PinCreate, image_url: str
 ) -> PinModel:
@@ -25,7 +26,7 @@ async def create_pin(
             description=data.description,
             image_url=image_url,
             link_url=data.link_url,
-            tags=tags
+            tags=tags,
         )
         db.add(pin)
         await db.flush()
@@ -74,12 +75,15 @@ async def get_pins(
 async def get_pin_by_id(db: AsyncSession, pin_id: uuid.UUID) -> PinModel:
     try:
         result = await db.execute(
-            select(PinModel).where(PinModel.id == pin_id)
+            select(PinModel)
+            .where(PinModel.id == pin_id)
             .options(selectinload(PinModel.tags))
         )
         pin = result.scalar_one_or_none()
         if pin is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pin not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Pin not found"
+            )
         return pin
     except SQLAlchemyError:
         logger.error(f"Database error while fetching pin: {pin_id}")
@@ -127,9 +131,7 @@ async def update_pin(
         )
 
 
-async def delete_pin(
-    db: AsyncSession, pin: PinModel, current_user: UserModel
-) -> None:
+async def delete_pin(db: AsyncSession, pin: PinModel, current_user: UserModel) -> None:
     if pin.owner_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -155,10 +157,10 @@ async def delete_pin(
 
 
 async def get_related_pins_from_db(
-    db: AsyncSession, 
-    pin_id: uuid.UUID, 
+    db: AsyncSession,
+    pin_id: uuid.UUID,
     limit: int = 20,
-    cache_service: CacheService | None = None
+    cache_service: CacheService | None = None,
 ) -> list[PinModel | PinResponse]:
     try:
         if cache_service:
@@ -185,7 +187,10 @@ async def get_related_pins_from_db(
             .where(pin_tag_association.c.tag_id.in_(tag_ids))
             .where(PinModel.id != pin_id)
             .group_by(PinModel.id)
-            .order_by(func.count(pin_tag_association.c.tag_id).desc(), PinModel.created_at.desc())
+            .order_by(
+                func.count(pin_tag_association.c.tag_id).desc(),
+                PinModel.created_at.desc(),
+            )
             .options(selectinload(PinModel.tags))
             .limit(limit)
         )
@@ -203,9 +208,7 @@ async def get_related_pins_from_db(
         )
 
 
-async def get_pins_by_ids(
-    db: AsyncSession, pin_ids: list[str]
-) -> list[PinModel]:
+async def get_pins_by_ids(db: AsyncSession, pin_ids: list[str]) -> list[PinModel]:
     try:
         uuids = []
         for pid in pin_ids:

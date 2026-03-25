@@ -13,7 +13,7 @@ app = FastAPI(
     title="Pinterest API",
     description="Pinterest API",
     version="0.0.1",
-    )
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -29,4 +29,3 @@ app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(user_router, prefix="/api/v1/users", tags=["users"])
 app.include_router(pin_router, prefix="/api/v1/pins", tags=["pins"])
 app.include_router(board_router, prefix="/api/v1/boards", tags=["boards"])
-

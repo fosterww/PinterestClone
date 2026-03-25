@@ -30,12 +30,16 @@ class TestVerifyPassword:
 class TestCreateAccessToken:
     def test_token_contains_subject(self):
         token = create_access_token({"sub": "testuser"})
-        payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+        payload = jwt.decode(
+            token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm]
+        )
         assert payload["sub"] == "testuser"
 
     def test_token_contains_expiration(self):
         token = create_access_token({"sub": "testuser"})
-        payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+        payload = jwt.decode(
+            token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm]
+        )
         assert "exp" in payload
         exp = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
         assert exp > datetime.now(timezone.utc)

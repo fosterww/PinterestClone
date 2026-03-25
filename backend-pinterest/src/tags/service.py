@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.logger import logger
 from src.boards.models import TagModel
 
+
 async def get_or_create_tag(db: AsyncSession, tag_names: list[str]) -> list[TagModel]:
     if not tag_names:
         return []
@@ -30,5 +31,7 @@ async def get_or_create_tag(db: AsyncSession, tag_names: list[str]) -> list[TagM
         return existing_tags + new_tags
     except SQLAlchemyError:
         logger.error(f"Database error while processing tags: {tag_names}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error while processing tags")
-    
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error while processing tags",
+        )

@@ -6,7 +6,15 @@ from fastapi import HTTPException
 from src.auth.service import register_user
 from src.users.schemas import UserCreate
 from src.pins.schemas import PinCreate, PinUpdate
-from src.pins.service import create_pin, get_pins, get_pin_by_id, update_pin, delete_pin, get_related_pins_from_db, get_pins_by_ids
+from src.pins.service import (
+    create_pin,
+    get_pins,
+    get_pin_by_id,
+    update_pin,
+    delete_pin,
+    get_related_pins_from_db,
+    get_pins_by_ids,
+)
 
 
 @pytest_asyncio.fixture
@@ -14,7 +22,7 @@ async def sample_user(db_session: AsyncSession):
     user_data = UserCreate(
         username="pin_svc_tester",
         email="pin_svc@example.com",
-        password="securepassword"
+        password="securepassword",
     )
     return await register_user(db_session, user_data)
 
@@ -24,7 +32,7 @@ async def another_user(db_session: AsyncSession):
     user_data = UserCreate(
         username="pin_svc_other",
         email="pin_svc_other@example.com",
-        password="securepassword"
+        password="securepassword",
     )
     return await register_user(db_session, user_data)
 
@@ -53,10 +61,7 @@ async def test_create_and_get_pin_no_tags(db_session: AsyncSession, sample_user)
 
 @pytest.mark.asyncio
 async def test_create_pin_with_tags(db_session: AsyncSession, sample_user):
-    pin_data = PinCreate(
-        title="Tagged Pin",
-        tags=["nature", "travel"]
-    )
+    pin_data = PinCreate(title="Tagged Pin", tags=["nature", "travel"])
     image_url = "https://example.com/image.jpg"
 
     created_pin = await create_pin(db_session, sample_user, pin_data, image_url)
@@ -67,8 +72,18 @@ async def test_create_pin_with_tags(db_session: AsyncSession, sample_user):
 
 @pytest.mark.asyncio
 async def test_create_pin_reuses_existing_tags(db_session: AsyncSession, sample_user):
-    pin1 = await create_pin(db_session, sample_user, PinCreate(title="Pin 1", tags=["cats"]), "http://img.jpg")
-    pin2 = await create_pin(db_session, sample_user, PinCreate(title="Pin 2", tags=["cats"]), "http://img.jpg")
+    pin1 = await create_pin(
+        db_session,
+        sample_user,
+        PinCreate(title="Pin 1", tags=["cats"]),
+        "http://img.jpg",
+    )
+    pin2 = await create_pin(
+        db_session,
+        sample_user,
+        PinCreate(title="Pin 2", tags=["cats"]),
+        "http://img.jpg",
+    )
 
     tag_id_pin1 = {t.name: t.id for t in pin1.tags}["cats"]
     tag_id_pin2 = {t.name: t.id for t in pin2.tags}["cats"]
@@ -91,7 +106,9 @@ async def test_get_pins_pagination(db_session: AsyncSession, sample_user):
 
 
 @pytest.mark.asyncio
-async def test_update_pin_success_and_forbidden(db_session: AsyncSession, sample_user, another_user):
+async def test_update_pin_success_and_forbidden(
+    db_session: AsyncSession, sample_user, another_user
+):
     pin_data = PinCreate(title="Original Title", tags=["old-tag"])
     image_url = "https://example.com/image.jpg"
     created_pin = await create_pin(db_session, sample_user, pin_data, image_url)
@@ -107,7 +124,9 @@ async def test_update_pin_success_and_forbidden(db_session: AsyncSession, sample
 
 
 @pytest.mark.asyncio
-async def test_delete_pin_success_and_forbidden(db_session: AsyncSession, sample_user, another_user):
+async def test_delete_pin_success_and_forbidden(
+    db_session: AsyncSession, sample_user, another_user
+):
     pin_data = PinCreate(title="To be deleted")
     image_url = "https://example.com/image.jpg"
     created_pin = await create_pin(db_session, sample_user, pin_data, image_url)
@@ -125,10 +144,24 @@ async def test_delete_pin_success_and_forbidden(db_session: AsyncSession, sample
 
 @pytest.mark.asyncio
 async def test_get_related_pins_from_db(db_session: AsyncSession, sample_user):
-    pin1 = await create_pin(db_session, sample_user, PinCreate(title="Pin 1", tags=["cats", "funny"]), "url1")
-    pin2 = await create_pin(db_session, sample_user, PinCreate(title="Pin 2", tags=["cats", "cute"]), "url2")
-    pin3 = await create_pin(db_session, sample_user, PinCreate(title="Pin 3", tags=["dogs", "funny"]), "url3")
-    await create_pin(db_session, sample_user, PinCreate(title="Pin 4", tags=["birds"]), "url4")
+    pin1 = await create_pin(
+        db_session,
+        sample_user,
+        PinCreate(title="Pin 1", tags=["cats", "funny"]),
+        "url1",
+    )
+    pin2 = await create_pin(
+        db_session, sample_user, PinCreate(title="Pin 2", tags=["cats", "cute"]), "url2"
+    )
+    pin3 = await create_pin(
+        db_session,
+        sample_user,
+        PinCreate(title="Pin 3", tags=["dogs", "funny"]),
+        "url3",
+    )
+    await create_pin(
+        db_session, sample_user, PinCreate(title="Pin 4", tags=["birds"]), "url4"
+    )
 
     related = await get_related_pins_from_db(db_session, pin1.id)
     assert len(related) == 2
@@ -142,9 +175,10 @@ async def test_get_pins_by_ids(db_session: AsyncSession, sample_user):
     pin1 = await create_pin(db_session, sample_user, PinCreate(title="Pin 1"), "url1")
     pin2 = await create_pin(db_session, sample_user, PinCreate(title="Pin 2"), "url2")
 
-    result = await get_pins_by_ids(db_session, [str(pin1.id), str(pin2.id), "invalid-uuid"])
+    result = await get_pins_by_ids(
+        db_session, [str(pin1.id), str(pin2.id), "invalid-uuid"]
+    )
     assert len(result) == 2
     ids = {p.id for p in result}
     assert pin1.id in ids
     assert pin2.id in ids
-

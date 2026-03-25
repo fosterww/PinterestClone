@@ -41,9 +41,7 @@ async def create_board(
         )
 
 
-async def get_user_boards(
-    db: AsyncSession, user_id: uuid.UUID
-) -> list[BoardModel]:
+async def get_user_boards(db: AsyncSession, user_id: uuid.UUID) -> list[BoardModel]:
     try:
         result = await db.execute(
             select(BoardModel)
@@ -60,14 +58,15 @@ async def get_user_boards(
         )
 
 
-async def get_board_by_id(
-    db: AsyncSession, board_id: uuid.UUID
-) -> BoardModel | None:
+async def get_board_by_id(db: AsyncSession, board_id: uuid.UUID) -> BoardModel | None:
     try:
         result = await db.execute(
-            select(BoardModel).where(BoardModel.id == board_id)
-            .options(joinedload(BoardModel.user), 
-            selectinload(BoardModel.pins).selectinload(PinModel.tags))
+            select(BoardModel)
+            .where(BoardModel.id == board_id)
+            .options(
+                joinedload(BoardModel.user),
+                selectinload(BoardModel.pins).selectinload(PinModel.tags),
+            )
         )
         return result.scalar_one_or_none()
     except SQLAlchemyError:
@@ -85,7 +84,9 @@ async def update_board(
     current_user: UserModel,
 ) -> BoardModel:
     if board is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Board not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Board not found"
+        )
     if board.owner_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -120,9 +121,13 @@ async def add_pin_to_board(
     current_user: UserModel,
 ) -> None:
     if board is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Board not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Board not found"
+        )
     if pin is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pin not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Pin not found"
+        )
     if board.owner_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -160,9 +165,13 @@ async def remove_pin_from_board(
     current_user: UserModel,
 ) -> None:
     if board is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Board not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Board not found"
+        )
     if pin is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pin not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Pin not found"
+        )
     if board.owner_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -180,7 +189,9 @@ async def remove_pin_from_board(
         await db.flush()
     except SQLAlchemyError:
         await db.rollback()
-        logger.error(f"Database error while removing pin from board: {board.id}, {pin.id}")
+        logger.error(
+            f"Database error while removing pin from board: {board.id}, {pin.id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database error while removing pin from board",

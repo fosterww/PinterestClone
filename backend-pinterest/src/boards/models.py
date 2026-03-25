@@ -47,20 +47,16 @@ class PinModel(Base):
     image_url: Mapped[str] = mapped_column(String(255), nullable=False)
     link_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
-
-    user: Mapped["UserModel"] = relationship(
-        "UserModel", back_populates="pins"
+    updated_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(), onupdate=func.now()
     )
+
+    user: Mapped["UserModel"] = relationship("UserModel", back_populates="pins")
     boards: Mapped[list["BoardModel"]] = relationship(
-        "BoardModel",
-        secondary=board_pin_association,
-        back_populates="pins"
+        "BoardModel", secondary=board_pin_association, back_populates="pins"
     )
     tags: Mapped[list["TagModel"]] = relationship(
-        "TagModel",
-        secondary=pin_tag_association,
-        back_populates="pins"
+        "TagModel", secondary=pin_tag_association, back_populates="pins"
     )
 
 
@@ -72,19 +68,16 @@ class BoardModel(Base):
     title: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
     visibility: Mapped[BoardVisibility] = mapped_column(
-        SAEnum(BoardVisibility, name="boardvisibility"),
-        default=BoardVisibility.PUBLIC
+        SAEnum(BoardVisibility, name="boardvisibility"), default=BoardVisibility.PUBLIC
     )
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
-
-    user: Mapped["UserModel"] = relationship(
-        "UserModel", back_populates="boards"
+    updated_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(), onupdate=func.now()
     )
+
+    user: Mapped["UserModel"] = relationship("UserModel", back_populates="boards")
     pins: Mapped[list["PinModel"]] = relationship(
-        "PinModel",
-        secondary=board_pin_association,
-        back_populates="boards"
+        "PinModel", secondary=board_pin_association, back_populates="boards"
     )
 
 
@@ -94,10 +87,10 @@ class TagModel(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(50), nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(), onupdate=func.now()
+    )
 
     pins: Mapped[list["PinModel"]] = relationship(
-        "PinModel",
-        secondary=pin_tag_association,
-        back_populates="tags"
+        "PinModel", secondary=pin_tag_association, back_populates="tags"
     )

@@ -2,7 +2,17 @@ import uuid
 import base64
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File, Form, Request
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    status,
+    UploadFile,
+    File,
+    Form,
+    Request,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.limiter import limiter
@@ -25,6 +35,7 @@ from src.pins.service import (
 from src.pins.task import index_image_task, delete_image_task
 
 router = APIRouter()
+
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/minute")
@@ -52,7 +63,7 @@ async def create_new_pin(
     image_url = await s3_service.upload_image_to_s3(image)
     data = PinCreate(title=title, description=description, link_url=link_url, tags=tags)
     pin = await create_pin(db, current_user, data, image_url=image_url)
-    
+
     base64_image = base64.b64encode(content).decode("utf-8")
     index_image_task.delay(str(pin.id), base64_image)
     return pin
@@ -72,9 +83,7 @@ async def list_pins(
 @router.get("/{pin_id}")
 @limiter.limit("10/minute")
 async def read_pin(
-    request: Request,
-    pin_id: uuid.UUID, 
-    db: AsyncSession = Depends(get_db)
+    request: Request, pin_id: uuid.UUID, db: AsyncSession = Depends(get_db)
 ) -> PinResponse:
     return await get_pin_by_id(db, pin_id)
 
@@ -102,7 +111,7 @@ async def remove_pin(
 ):
     pin = await get_pin_by_id(db, pin_id)
     await delete_pin(db, pin, current_user)
-    
+
     delete_image_task.delay(str(pin_id))
 
 
@@ -116,14 +125,16 @@ async def get_related_pins(
     cache_service: CacheService = Depends(get_cache_service),
 ) -> list[PinResponse]:
     similar_ids = await clarifai_service.search_similar_images_by_id(str(pin_id))
-    db_related_pins = await get_related_pins_from_db(db, pin_id, limit=20, cache_service=cache_service)
+    db_related_pins = await get_related_pins_from_db(
+        db, pin_id, limit=20, cache_service=cache_service
+    )
     clarifai_pins = await get_pins_by_ids(db, similar_ids)
 
     seen_ids = set()
     merged_pins = []
-    
+
     clarifai_dict = {p.id: p for p in clarifai_pins}
-    
+
     for cid in similar_ids:
         try:
             c_uuid = uuid.UUID(cid)
@@ -137,5 +148,5 @@ async def get_related_pins(
         if db_pin.id not in seen_ids:
             merged_pins.append(db_pin)
             seen_ids.add(db_pin.id)
-            
+
     return merged_pins

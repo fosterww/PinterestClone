@@ -7,7 +7,12 @@ from src.core.limiter import limiter
 from src.database import get_db
 from src.core.auth import get_current_user
 from src.users.models import UserModel
-from src.boards.schemas import BoardCreate, BoardUpdate, BoardResponse, BoardPinsResponse
+from src.boards.schemas import (
+    BoardCreate,
+    BoardUpdate,
+    BoardResponse,
+    BoardPinsResponse,
+)
 from src.pins.schemas import PinResponse
 from src.boards.service import (
     create_board,
@@ -47,13 +52,13 @@ async def list_boards(
 @router.get("/{board_id}")
 @limiter.limit("10/minute")
 async def read_board(
-    request: Request,
-    board_id: uuid.UUID, 
-    db: AsyncSession = Depends(get_db)
+    request: Request, board_id: uuid.UUID, db: AsyncSession = Depends(get_db)
 ) -> BoardPinsResponse:
     board = await get_board_by_id(db, board_id)
     if board is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Board not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Board not found"
+        )
     return board
 
 
@@ -68,7 +73,9 @@ async def patch_board(
 ) -> BoardResponse:
     board = await get_board_by_id(db, board_id)
     if board is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Board not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Board not found"
+        )
     return await update_board(db, board, data, current_user)
 
 

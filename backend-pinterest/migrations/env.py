@@ -34,7 +34,6 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
-
 def do_run_migrations(connection: Connection) -> None:
     context.configure(
         connection=connection,

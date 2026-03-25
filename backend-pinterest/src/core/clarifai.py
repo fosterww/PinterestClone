@@ -5,6 +5,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from src.core.logger import logger
 from src.core.config import settings
 
+
 class ClarifaiService:
     def __init__(self, api_key: str, app_id: str, user_id: str):
         self.api_key = api_key
@@ -13,7 +14,7 @@ class ClarifaiService:
         self.base_url = f"https://api.clarifai.com/v2/users/{user_id}/apps/{app_id}"
         self.headers = {
             "Authorization": f"Key {api_key}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
         self.client = httpx.AsyncClient(timeout=30.0)
 
@@ -23,19 +24,16 @@ class ClarifaiService:
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),
-        reraise=True
+        reraise=True,
     )
     async def index_image_bytes(self, pin_id: str, image_bytes: bytes) -> None:
         base64_image = base64.b64encode(image_bytes).decode("utf-8")
         url = f"{self.base_url}/inputs"
-        
+
         payload = {
-            "inputs": [{
-                "id": str(pin_id),
-                "data": {"image": {"base64": base64_image}}
-            }]
+            "inputs": [{"id": str(pin_id), "data": {"image": {"base64": base64_image}}}]
         }
-        
+
         try:
             response = await self.client.post(url, headers=self.headers, json=payload)
             response.raise_for_status()
@@ -46,7 +44,7 @@ class ClarifaiService:
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),
-        reraise=True
+        reraise=True,
     )
     async def search_similar_images_by_id(self, pin_id: str) -> list[str]:
         url = f"{self.base_url}/searches"
@@ -54,16 +52,14 @@ class ClarifaiService:
             "searches": [
                 {
                     "query": {
-                        "ranks": [{
-                            "annotation": {
-                                "data": {"image": {"id": str(pin_id)}}
-                            }
-                        }]
+                        "ranks": [
+                            {"annotation": {"data": {"image": {"id": str(pin_id)}}}}
+                        ]
                     }
                 }
             ]
         }
-        
+
         try:
             response = await self.client.post(url, headers=self.headers, json=payload)
             response.raise_for_status()
@@ -77,7 +73,7 @@ class ClarifaiService:
                 score = hit.get("score", 0)
                 if hit_id and hit_id != str(pin_id) and score > 0.6:
                     similar_pin_ids.append(hit_id)
-            return similar_pin_ids 
+            return similar_pin_ids
         except Exception as e:
             logger.error(f"Failed to search similar images in Clarifai: {e}")
             return []
@@ -85,7 +81,7 @@ class ClarifaiService:
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),
-        reraise=True
+        reraise=True,
     )
     async def delete_image(self, pin_id: str) -> None:
         url = f"{self.base_url}/inputs/{pin_id}"
@@ -98,4 +94,6 @@ class ClarifaiService:
 
 
 async def get_clarifai_service() -> ClarifaiService:
-    return ClarifaiService(settings.clarifai_api_key, settings.clarifai_app_id, settings.clarifai_user_id)
+    return ClarifaiService(
+        settings.clarifai_api_key, settings.clarifai_app_id, settings.clarifai_user_id
+    )

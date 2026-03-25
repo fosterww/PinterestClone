@@ -12,6 +12,7 @@ from src.database import Base
 if TYPE_CHECKING:
     from src.boards.models import BoardModel, PinModel
 
+
 class UserModel(Base):
     __tablename__ = "users"
 
@@ -23,7 +24,11 @@ class UserModel(Base):
     bio: Mapped[str | None] = mapped_column(String(500), nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        default=func.now(), onupdate=func.now()
+    )
 
-    boards: Mapped[list["BoardModel"]] = relationship("BoardModel", back_populates="user")
+    boards: Mapped[list["BoardModel"]] = relationship(
+        "BoardModel", back_populates="user"
+    )
     pins: Mapped[list["PinModel"]] = relationship("PinModel", back_populates="user")

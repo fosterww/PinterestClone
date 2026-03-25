@@ -48,11 +48,12 @@ class Settings(BaseSettings):
     redis_port: int = 6379
     redis_db: int = 0
     redis_socket_timeout: int = 5
-    
+
     rabbitmq_url: str = "amqp://pinterest:pinterest@localhost:5672//"
 
     clarifai_api_key: str = ""
     clarifai_user_id: str = ""
     clarifai_app_id: str = ""
+
 
 settings = Settings()

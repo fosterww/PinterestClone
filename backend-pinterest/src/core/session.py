@@ -4,6 +4,7 @@ from redis.asyncio import Redis, RedisError
 from src.core.logger import logger
 from src.core.config import settings
 
+
 class SessionService:
     def __init__(self, redis: Redis):
         self.redis = redis

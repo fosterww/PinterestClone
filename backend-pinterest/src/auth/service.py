@@ -48,7 +48,9 @@ async def register_user(db: AsyncSession, data: UserCreate) -> UserModel:
         )
     except SQLAlchemyError:
         await db.rollback()
-        logger.error(f"Database error while creating user: {data.username}, {data.email}")
+        logger.error(
+            f"Database error while creating user: {data.username}, {data.email}"
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database error during registration",

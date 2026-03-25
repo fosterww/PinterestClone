@@ -5,7 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.limiter import limiter
 from src.core.auth import oauth2_scheme
 from src.database import get_db
-from src.auth.service import register_user, authenticate_user, logout_user, create_user_token
+from src.auth.service import (
+    register_user,
+    authenticate_user,
+    logout_user,
+    create_user_token,
+)
 from src.users.schemas import UserCreate, UserResponse
 from src.core.session import SessionService, get_session_service
 
@@ -15,7 +20,7 @@ router = APIRouter()
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/minute")
 async def register(
-    request: Request, 
+    request: Request,
     data: UserCreate,
     db: AsyncSession = Depends(get_db),
 ) -> UserResponse:

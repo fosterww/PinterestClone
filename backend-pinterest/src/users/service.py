@@ -10,9 +10,7 @@ from src.users.schemas import UserUpdate
 
 async def get_user_by_id(db: AsyncSession, user_id) -> UserModel | None:
     try:
-        result = await db.execute(
-            select(UserModel).where(UserModel.id == user_id)
-        )
+        result = await db.execute(select(UserModel).where(UserModel.id == user_id))
         return result.scalar_one_or_none()
     except SQLAlchemyError:
         logger.error(f"Database error while fetching user: {user_id}")
@@ -22,9 +20,7 @@ async def get_user_by_id(db: AsyncSession, user_id) -> UserModel | None:
         )
 
 
-async def update_user(
-    db: AsyncSession, user: UserModel, data: UserUpdate
-) -> UserModel:
+async def update_user(db: AsyncSession, user: UserModel, data: UserUpdate) -> UserModel:
     update_data = data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(user, field, value)

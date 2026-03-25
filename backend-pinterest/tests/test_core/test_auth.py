@@ -13,14 +13,16 @@ from src.users.schemas import UserCreate
 @pytest.mark.asyncio
 async def test_get_current_user_success(db_session: AsyncSession, mock_session_service):
     user_data = UserCreate(
-        username="auth_core_user",
-        email="auth_core@example.com",
-        password="password123"
+        username="auth_core_user", email="auth_core@example.com", password="password123"
     )
     created_user = await register_user(db_session, user_data)
 
-    token = create_access_token({"sub": created_user.username, "session_id": "mock_session_id"})
-    user = await get_current_user(token=token, db=db_session, session_service=mock_session_service)
+    token = create_access_token(
+        {"sub": created_user.username, "session_id": "mock_session_id"}
+    )
+    user = await get_current_user(
+        token=token, db=db_session, session_service=mock_session_service
+    )
 
     assert user is not None
     assert user.id == created_user.id
@@ -36,7 +38,9 @@ async def test_get_current_user_invalid_token(db_session: AsyncSession):
 
 @pytest.mark.asyncio
 async def test_get_current_user_no_subject(db_session: AsyncSession):
-    token = jwt.encode({"data": "no_sub"}, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+    token = jwt.encode(
+        {"data": "no_sub"}, settings.jwt_secret_key, algorithm=settings.jwt_algorithm
+    )
     with pytest.raises(HTTPException) as excinfo:
         await get_current_user(token=token, db=db_session)
     assert excinfo.value.status_code == 401

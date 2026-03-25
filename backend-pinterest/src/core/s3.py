@@ -6,6 +6,7 @@ from fastapi import UploadFile, HTTPException, status
 
 from src.core.config import settings
 
+
 class S3Service:
     def __init__(self):
         self.session = aioboto3.Session()
@@ -13,7 +14,7 @@ class S3Service:
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),
-        reraise=True
+        reraise=True,
     )
     async def upload_image_to_s3(self, file: UploadFile) -> str:
         ext = file.filename.rsplit(".", 1)[-1] if "." in file.filename else "jpg"
@@ -35,11 +36,11 @@ class S3Service:
                     Body=content,
                     ContentType=file.content_type,
                 )
-                return f"{settings.s3_public_base_url}/{object_name}"  
+                return f"{settings.s3_public_base_url}/{object_name}"
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to upload image to S3: {str(e)}"
+                detail=f"Failed to upload image to S3: {str(e)}",
             )
 
 
