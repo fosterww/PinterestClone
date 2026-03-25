@@ -1,18 +1,25 @@
-name: CI/CD Pipeline
+name: Backend CI/CD Pipeline
 
 on:
   push:
     branches:
       - main
       - master
+    paths:
+      - 'backend-pinterest/**'
   pull_request:
     branches:
       - main
       - master
+    paths:
+      - 'backend/**'
 
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend-pinterest
 
     steps:
       - name: Checkout code
@@ -23,6 +30,7 @@ jobs:
         with:
           version: "latest"
           enable-cache: true
+          cache-dependency-glob: "backend-pinterest/uv.lock"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -60,11 +68,13 @@ jobs:
           CLARIFAI_APP_ID: test
           CLARIFAI_USER_ID: test
         run: uv run pytest
+
   build:
     name: Build Docker Image
     needs: lint-and-test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
       - name: Build Docker Image
-        run: docker build -t task_tracker_app .
+        run: docker build -t task_tracker_app ./backend-pinterest
