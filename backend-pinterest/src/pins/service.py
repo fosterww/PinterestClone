@@ -1,340 +1,147 @@
 import uuid
 from typing import List
 
-from fastapi import HTTPException, status
-from sqlalchemy import select, func
-from sqlalchemy.orm import selectinload
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.logger import logger
 from src.core.cache import CacheService
-from src.boards.models import PinModel, pin_tag_association, TagModel, PinLikeModel
+from src.core.exception import ConflictError, NotFoundError, ForbiddenError
+from src.boards.models import PinModel
 from src.users.models import UserModel
-from src.pins.schemas import PinCreate, PinUpdate, PinResponse, CreatedAt, Popularity
-from src.tags.service import get_or_create_tag
+from src.pins.schemas import PinCreate, PinUpdate, PinResponse
+from src.tags.service import TagService
+from src.pins.repository import PinRepository
+from src.pins.schemas import CreatedAt, Popularity
 
 
-async def create_pin(
-    db: AsyncSession, owner: UserModel, data: PinCreate, image_url: str
-) -> PinModel:
-    try:
-        tags = await get_or_create_tag(db, data.tags)
-        pin = PinModel(
-            id=uuid.uuid4(),
-            owner_id=owner.id,
-            title=data.title,
-            description=data.description,
-            image_url=image_url,
-            link_url=data.link_url,
-            tags=tags,
-        )
-        db.add(pin)
-        await db.flush()
-        result = await db.execute(
-            select(PinModel)
-            .where(PinModel.id == pin.id)
-            .options(selectinload(PinModel.tags))
-        )
-        return result.scalar_one()
-    except IntegrityError:
-        await db.rollback()
-        logger.error(f"Pin conflicts with existing data: {owner.id}")
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Pin conflicts with existing data",
-        )
-    except SQLAlchemyError:
-        await db.rollback()
-        logger.error(f"Database error while creating pin: {owner.id}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error while creating pin",
-        )
+class PinService:
+    def __init__(
+        self,
+        db: AsyncSession,
+        cache: CacheService,
+        repo: PinRepository,
+        tag_service: TagService,
+    ) -> None:
+        self.db = db
+        self.cache = cache
+        self.repo = repo
+        self.tag_service = tag_service
 
+    async def _get_from_cache(self, pin_id: uuid.UUID):
+        try:
+            data = await self.cache.get_pattern(f"related_pins:{pin_id}:*")
+            if data:
+                return [PinResponse.model_validate_json(p) for p in data if p]
+        except Exception as e:
+            logger.warning(f"Cache read error: {e}")
+            return None
 
-async def get_pins(
-    db: AsyncSession,
-    offset: int = 0,
-    limit: int = 20,
-    search: str | None = None,
-    tags: list[str] = [],
-    created_at: CreatedAt | None = None,
-    popularity: Popularity | None = None,
-) -> list[PinModel]:
-    try:
-        query = select(PinModel).options(selectinload(PinModel.tags))
-
-        if search:
-            query = query.where(PinModel.title.icontains(search))
-
-        if tags:
-            query = query.where(PinModel.tags.any(TagModel.name.in_(tags)))
-
-        if created_at == CreatedAt.newest:
-            query = query.order_by(PinModel.created_at.desc())
-        elif created_at == CreatedAt.oldest:
-            query = query.order_by(PinModel.created_at.asc())
-
-        if popularity == Popularity.most_popular:
-            query = query.order_by(PinModel.likes_count.desc())
-        elif popularity == Popularity.least_popular:
-            query = query.order_by(PinModel.likes_count.asc())
-
-        result = await db.execute(query.offset(offset).limit(limit))
-        return list(result.scalars().all())
-    except SQLAlchemyError:
-        logger.error(f"Database error while fetching pins: {offset}, {limit}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error while fetching pins",
-        )
-
-
-async def get_user_pins(username: str, db: AsyncSession) -> List[PinModel]:
-    try:
-        result = await db.execute(
-            select(PinModel)
-            .join(UserModel)
-            .where(UserModel.username == username)
-            .options(selectinload(PinModel.tags))
-            .order_by(PinModel.created_at.desc())
-        )
-        return list(result.scalars().all())
-    except SQLAlchemyError:
-        logger.error(f"Database error while fetching user pins: {username}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error while fetching user pins",
-        )
-
-
-async def like_pin(db: AsyncSession, pin_id: uuid.UUID, user_id: uuid.UUID) -> PinModel:
-    try:
-        result = await db.execute(
-            select(PinLikeModel)
-            .where(PinLikeModel.pin_id == pin_id)
-            .where(PinLikeModel.user_id == user_id)
-        )
-        existing_like = result.scalar_one_or_none()
-        if existing_like is not None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, detail="Pin like already exists"
-            )
-        pin = await get_pin_by_id(db, pin_id)
-        pin.likes_count += 1
-        pin_like = PinLikeModel(pin_id=pin_id, user_id=user_id)
-        db.add(pin_like)
-        await db.flush()
-        result = await db.execute(
-            select(PinModel)
-            .where(PinModel.id == pin_id)
-            .options(selectinload(PinModel.tags))
-        )
-        return result.scalar_one()
-    except HTTPException:
-        raise
-    except SQLAlchemyError:
-        await db.rollback()
-        logger.error(f"Database error while liking pin: {pin_id}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error while liking pin",
-        )
-
-
-async def unlike_pin(
-    db: AsyncSession, pin_id: uuid.UUID, user_id: uuid.UUID
-) -> PinModel:
-    try:
-        result = await db.execute(
-            select(PinLikeModel)
-            .where(PinLikeModel.pin_id == pin_id)
-            .where(PinLikeModel.user_id == user_id)
-        )
-        pin_like = result.scalar_one_or_none()
-        if pin_like is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Pin like not found"
-            )
-        pin = await get_pin_by_id(db, pin_id)
-        pin.likes_count = max(0, pin.likes_count - 1)
-        await db.delete(pin_like)
-        await db.flush()
-        result = await db.execute(
-            select(PinModel)
-            .where(PinModel.id == pin_id)
-            .options(selectinload(PinModel.tags))
-        )
-        return result.scalar_one()
-    except HTTPException:
-        raise
-    except SQLAlchemyError:
-        await db.rollback()
-        logger.error(f"Database error while unliking pin: {pin_id}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error while unliking pin",
-        )
-
-
-async def get_pin_by_id(db: AsyncSession, pin_id: uuid.UUID) -> PinModel:
-    try:
-        result = await db.execute(
-            select(PinModel)
-            .where(PinModel.id == pin_id)
-            .options(selectinload(PinModel.tags))
-        )
-        pin = result.scalar_one_or_none()
-        if pin is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Pin not found"
-            )
-        return pin
-    except SQLAlchemyError:
-        logger.error(f"Database error while fetching pin: {pin_id}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error while fetching pin",
-        )
-
-
-async def update_pin(
-    db: AsyncSession, pin: PinModel, data: PinUpdate, current_user: UserModel
-) -> PinModel:
-    if pin.owner_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not the pin owner",
-        )
-    update_data = data.model_dump(exclude_unset=True)
-    if "tags" in update_data:
-        pin.tags = await get_or_create_tag(db, update_data["tags"])
-        del update_data["tags"]
-    for field, value in update_data.items():
-        setattr(pin, field, value)
-    try:
-        await db.flush()
-        result = await db.execute(
-            select(PinModel)
-            .where(PinModel.id == pin.id)
-            .options(selectinload(PinModel.tags))
-        )
-        return result.scalar_one()
-    except IntegrityError:
-        await db.rollback()
-        logger.error(f"Pin update conflicts with existing data: {pin.id}")
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Pin update conflicts with existing data",
-        )
-    except SQLAlchemyError:
-        await db.rollback()
-        logger.error(f"Database error while updating pin: {pin.id}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error while updating pin",
-        )
-
-
-async def delete_pin(db: AsyncSession, pin: PinModel, current_user: UserModel) -> None:
-    if pin.owner_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not the pin owner",
-        )
-    try:
-        await db.delete(pin)
-        await db.flush()
-    except IntegrityError:
-        await db.rollback()
-        logger.error(f"Error while deleting pin: {pin.id}")
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Cannot delete pin — it is still referenced",
-        )
-    except SQLAlchemyError:
-        await db.rollback()
-        logger.error(f"Database error while deleting pin: {pin.id}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error while deleting pin",
-        )
-
-
-async def get_related_pins_from_db(
-    db: AsyncSession,
-    pin_id: uuid.UUID,
-    limit: int = 20,
-    cache_service: CacheService | None = None,
-) -> list[PinModel | PinResponse]:
-    try:
-        if cache_service:
-            cached_pins = await cache_service.get_pattern(f"related_pins:{pin_id}:*")
-            if cached_pins:
-                return [PinResponse.model_validate_json(p) for p in cached_pins if p]
-    except Exception:
-        pass
-    try:
-        result = await db.execute(
-            select(PinModel)
-            .where(PinModel.id == pin_id)
-            .options(selectinload(PinModel.tags))
-        )
-        pin = result.scalar_one_or_none()
-        if not pin or not pin.tags:
-            return []
-
-        tag_ids = [tag.id for tag in pin.tags]
-
-        related_result = await db.execute(
-            select(PinModel)
-            .join(pin_tag_association)
-            .where(pin_tag_association.c.tag_id.in_(tag_ids))
-            .where(PinModel.id != pin_id)
-            .group_by(PinModel.id)
-            .order_by(
-                func.count(pin_tag_association.c.tag_id).desc(),
-                PinModel.created_at.desc(),
-            )
-            .options(selectinload(PinModel.tags))
-            .limit(limit)
-        )
-        items = list(related_result.scalars().all())
-        if cache_service:
-            for i, pin in enumerate(items):
+    async def _set_to_cache(self, pin_id: uuid.UUID, pins: list[PinModel]):
+        try:
+            for i, pin in enumerate(pins):
                 pin_json = PinResponse.model_validate(pin).model_dump_json()
-                await cache_service.set(f"related_pins:{pin_id}:{i}", pin_json, 600)
-        return items
-    except SQLAlchemyError:
-        logger.error(f"Database error while fetching related pins: {pin_id}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error while fetching related pins",
+                await self.cache.set(f"related_pins:{pin_id}:{i}", pin_json, 600)
+        except Exception as e:
+            logger.error(f"Cache write error: {e}")
+
+    async def get_pin_by_id(self, pin_id: uuid.UUID) -> PinModel | None:
+        result = await self.repo.get_pin_by_id(pin_id)
+        if result is None:
+            raise NotFoundError("Pin not found")
+        return result
+
+    async def get_pins(
+        self,
+        offset: int = 0,
+        limit: int = 20,
+        search: str | None = None,
+        tags: list[str] = [],
+        created_at: CreatedAt | None = None,
+        popularity: Popularity | None = None,
+    ) -> List[PinResponse]:
+        return await self.repo.get_pins(
+            offset=offset,
+            limit=limit,
+            search=search,
+            tags=tags,
+            created_at=created_at,
+            popularity=popularity,
         )
 
+    async def get_pins_by_ids(self, pin_ids: list[str]) -> List[PinResponse]:
+        return await self.repo.get_pins_by_ids(pin_ids)
 
-async def get_pins_by_ids(db: AsyncSession, pin_ids: list[str]) -> list[PinModel]:
-    try:
-        uuids = []
-        for pid in pin_ids:
-            try:
-                uuids.append(uuid.UUID(pid))
-            except ValueError:
-                continue
+    async def create_pin(
+        self, owner: UserModel, data: PinCreate, image_url: str
+    ) -> PinResponse:
+        try:
+            tags = await self.tag_service.get_or_create_tag(data.tags)
+            return await self.repo.create_pin(owner, data, image_url, tags)
+        except ConflictError:
+            await self.db.rollback()
+            logger.error(f"Pin conflicts with existing data: {owner.id}")
+            raise ConflictError()
 
-        if not uuids:
+    async def update_pin(
+        self, pin: PinModel, data: PinUpdate, current_user: UserModel
+    ) -> PinResponse:
+        if pin.owner_id != current_user.id:
+            raise ForbiddenError("Not the pin owner")
+        try:
+            update_data = data.model_dump(exclude_unset=True)
+            if "tags" in update_data:
+                pin.tags = await self.tag_service.get_or_create_tag(update_data["tags"])
+                del update_data["tags"]
+            return await self.repo.update_pin(pin, update_data)
+        except ConflictError:
+            logger.error(f"Error while updating pin: {pin.id}")
+            raise ConflictError("Cannot update pin — it is still referenced")
+
+    async def delete_pin(self, pin: PinModel, current_user: UserModel) -> None:
+        if pin.owner_id != current_user.id:
+            raise ForbiddenError("Not the pin owner")
+        try:
+            await self.repo.delete_pin(pin)
+        except ConflictError:
+            logger.error(f"Error while deleting pin: {pin.id}")
+            raise ConflictError("Cannot delete pin — it is still referenced")
+
+    async def get_related_pins(
+        self, pin_id: uuid.UUID, limit: int = 20
+    ) -> List[PinResponse]:
+        cached_pins = await self._get_from_cache(pin_id)
+        if cached_pins:
+            return cached_pins
+        base_pin = await self.repo.get_pin_by_id(pin_id)
+        if not base_pin or not base_pin.tags:
             return []
 
-        result = await db.execute(
-            select(PinModel)
-            .where(PinModel.id.in_(uuids))
-            .options(selectinload(PinModel.tags))
-        )
-        return list(result.scalars().all())
-    except SQLAlchemyError:
-        logger.error(f"Database error while fetching pins by IDs: {pin_ids}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error while fetching pins by IDs",
-        )
+        tag_ids = [tag.id for tag in base_pin.tags]
+        related_pins = await self.repo.get_related_by_tags(pin_id, tag_ids, limit)
+
+        if related_pins:
+            await self._set_to_cache(pin_id, related_pins)
+
+        return [PinResponse.model_validate(pin) for pin in related_pins]
+
+    async def like_pin(self, pin_id: uuid.UUID, user_id: uuid.UUID) -> PinResponse:
+        like = await self.repo.get_like(pin_id, user_id)
+        pin = await self.repo.get_pin_by_id(pin_id)
+        if like:
+            raise ConflictError("Like already exists")
+        await self.repo.add_like(pin_id, user_id)
+        if hasattr(pin, "likes_count"):
+            pin.likes_count += 1
+            await self.db.flush()
+        return PinResponse.model_validate(pin)
+
+    async def unlike_pin(self, pin_id: uuid.UUID, user_id: uuid.UUID) -> PinResponse:
+        like = await self.repo.get_like(pin_id, user_id)
+        pin = await self.repo.get_pin_by_id(pin_id)
+        if not like:
+            raise NotFoundError("Like not found")
+        await self.repo.delete_like(like)
+        if hasattr(pin, "likes_count") and pin.likes_count > 0:
+            pin.likes_count -= 1
+            await self.db.flush()
+        return PinResponse.model_validate(pin)

@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     jwt_secret_key: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24
+    refresh_token_expire_minutes: int = 60 * 24 * 7
+
+    google_client_id: str = ""
+    google_client_secret: str = ""
 
     s3_endpoint_url: str = "http://localhost:9000"
     s3_region: str = "us-east-1"

@@ -1,10 +1,9 @@
 import uuid
+from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, status, Request
 
 from src.core.limiter import limiter
-from src.database import get_db
 from src.core.auth import get_current_user
 from src.users.models import UserModel
 from src.boards.schemas import (
@@ -13,16 +12,8 @@ from src.boards.schemas import (
     BoardResponse,
     BoardPinsResponse,
 )
-from src.pins.schemas import PinResponse
-from src.boards.service import (
-    create_board,
-    get_user_boards,
-    get_board_by_id,
-    update_board,
-    add_pin_to_board,
-    remove_pin_from_board,
-)
-from src.pins.service import get_pin_by_id
+from src.boards.service import BoardService
+from src.core.dependencies import get_board_service
 
 router = APIRouter()
 
@@ -33,10 +24,9 @@ async def create_new_board(
     request: Request,
     data: BoardCreate,
     current_user: UserModel = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    board_service: BoardService = Depends(get_board_service),
 ) -> BoardResponse:
-    board = await create_board(db, current_user, data)
-    return board
+    return await board_service.create_board(current_user, data)
 
 
 @router.get("/")
@@ -44,22 +34,19 @@ async def create_new_board(
 async def list_boards(
     request: Request,
     current_user: UserModel = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> list[BoardResponse]:
-    return await get_user_boards(db, current_user.id)
+    board_service: BoardService = Depends(get_board_service),
+) -> List[BoardResponse]:
+    return await board_service.get_user_boards(current_user.id)
 
 
 @router.get("/{board_id}")
 @limiter.limit("10/minute")
 async def read_board(
-    request: Request, board_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+    request: Request,
+    board_id: uuid.UUID,
+    board_service: BoardService = Depends(get_board_service),
 ) -> BoardPinsResponse:
-    board = await get_board_by_id(db, board_id)
-    if board is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Board not found"
-        )
-    return board
+    return await board_service.get_board_by_id(board_id)
 
 
 @router.patch("/{board_id}")
@@ -69,14 +56,9 @@ async def patch_board(
     board_id: uuid.UUID,
     data: BoardUpdate,
     current_user: UserModel = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    board_service: BoardService = Depends(get_board_service),
 ) -> BoardResponse:
-    board = await get_board_by_id(db, board_id)
-    if board is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Board not found"
-        )
-    return await update_board(db, board, data, current_user)
+    return await board_service.update_board(board_id, data, current_user)
 
 
 @router.post("/{board_id}/pins/{pin_id}", status_code=status.HTTP_201_CREATED)
@@ -86,12 +68,9 @@ async def add_pin(
     board_id: uuid.UUID,
     pin_id: uuid.UUID,
     current_user: UserModel = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> PinResponse:
-    board = await get_board_by_id(db, board_id)
-    pin = await get_pin_by_id(db, pin_id)
-    await add_pin_to_board(db, board, pin, current_user)
-    return pin
+    board_service: BoardService = Depends(get_board_service),
+):
+    await board_service.add_pin_to_board(board_id, pin_id, current_user)
 
 
 @router.delete("/{board_id}/pins/{pin_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -101,8 +80,6 @@ async def remove_pin(
     board_id: uuid.UUID,
     pin_id: uuid.UUID,
     current_user: UserModel = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    board_service: BoardService = Depends(get_board_service),
 ):
-    board = await get_board_by_id(db, board_id)
-    pin = await get_pin_by_id(db, pin_id)
-    await remove_pin_from_board(db, board, pin, current_user)
+    return await board_service.remove_pin_from_board(board_id, pin_id, current_user)

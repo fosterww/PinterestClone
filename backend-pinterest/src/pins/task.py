@@ -2,10 +2,10 @@ import asyncio
 import base64
 
 from src.core.celery import celery_app
-from src.core.clarifai import get_clarifai_service
+from src.core.dependencies import get_clarifai_service
 
 
-async def _index_image(pin_id: str, image_bytes: bytes):
+async def _index_image(pin_id: str, image_bytes: bytes) -> None:
     clarifai_service = await get_clarifai_service()
     try:
         await clarifai_service.index_image_bytes(pin_id, image_bytes)
@@ -14,12 +14,12 @@ async def _index_image(pin_id: str, image_bytes: bytes):
 
 
 @celery_app.task(name="index_image_task", queue="default")
-def index_image_task(pin_id: str, base64_image: str):
+def index_image_task(pin_id: str, base64_image: str) -> None:
     image_bytes = base64.b64decode(base64_image)
     asyncio.run(_index_image(pin_id, image_bytes))
 
 
-async def _delete_image(pin_id: str):
+async def _delete_image(pin_id: str) -> None:
     clarifai_service = await get_clarifai_service()
     try:
         await clarifai_service.delete_image(pin_id)
@@ -28,5 +28,5 @@ async def _delete_image(pin_id: str):
 
 
 @celery_app.task(name="delete_image_task", queue="default")
-def delete_image_task(pin_id: str):
+def delete_image_task(pin_id: str) -> None:
     asyncio.run(_delete_image(pin_id))

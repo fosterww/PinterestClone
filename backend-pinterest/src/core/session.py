@@ -2,7 +2,6 @@ import uuid
 
 from redis.asyncio import Redis, RedisError
 from src.core.logger import logger
-from src.core.config import settings
 
 
 class SessionService:
@@ -41,12 +40,3 @@ class SessionService:
         except RedisError as e:
             logger.error(f"Error refreshing session {session_id}: {e}")
             raise Exception(f"Error refreshing session for {session_id}")
-
-
-async def get_session_service() -> SessionService:
-    redis = await Redis.from_url(
-        settings.redis_url,
-        decode_responses=True,
-        socket_timeout=settings.redis_socket_timeout,
-    )
-    return SessionService(redis)

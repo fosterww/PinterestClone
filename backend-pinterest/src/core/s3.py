@@ -42,7 +42,3 @@ class S3Service:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to upload image to S3: {str(e)}",
             )
-
-
-async def get_s3_service() -> S3Service:
-    return S3Service()

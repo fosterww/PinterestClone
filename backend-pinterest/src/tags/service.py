@@ -1,4 +1,3 @@
-from fastapi import HTTPException, status
 import uuid
 
 from sqlalchemy import select
@@ -7,31 +6,33 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.logger import logger
 from src.boards.models import TagModel
+from src.core.exception import AppError
 
 
-async def get_or_create_tag(db: AsyncSession, tag_names: list[str]) -> list[TagModel]:
-    if not tag_names:
-        return []
-    try:
-        query = select(TagModel).where(TagModel.name.in_(tag_names))
-        result = await db.execute(query)
-        existing_tags = result.scalars().all()
-        existing_names = {tag.name for tag in existing_tags}
+class TagService:
+    def __init__(self, db: AsyncSession) -> None:
+        self.db = db
 
-        new_tags = [
-            TagModel(id=uuid.uuid4(), name=name)
-            for name in tag_names
-            if name not in existing_names
-        ]
+    async def get_or_create_tag(self, tag_names: list[str]) -> list[TagModel]:
+        if not tag_names:
+            return []
+        try:
+            query = select(TagModel).where(TagModel.name.in_(tag_names))
+            result = await self.db.execute(query)
+            existing_tags = result.scalars().all()
+            existing_names = {tag.name for tag in existing_tags}
 
-        if new_tags:
-            db.add_all(new_tags)
-            await db.flush()
+            new_tags = [
+                TagModel(id=uuid.uuid4(), name=name)
+                for name in tag_names
+                if name not in existing_names
+            ]
 
-        return existing_tags + new_tags
-    except SQLAlchemyError:
-        logger.error(f"Database error while processing tags: {tag_names}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error while processing tags",
-        )
+            if new_tags:
+                self.db.add_all(new_tags)
+                await self.db.flush()
+
+            return existing_tags + new_tags
+        except SQLAlchemyError:
+            logger.error(f"Database error while processing tags: {tag_names}")
+            raise AppError()

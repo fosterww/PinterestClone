@@ -80,3 +80,33 @@ async def test_login_invalid_credentials(client: AsyncClient):
     data = login_response.json()
     assert login_response.status_code == 401
     assert data["detail"] == "Invalid username or password"
+
+
+@pytest.mark.asyncio
+async def test_refresh_token_success(client: AsyncClient):
+    await client.post(
+        "/api/v2/auth/register",
+        json={
+            "username": "refresh_test",
+            "email": "refresh@example.com",
+            "password": "password",
+        },
+    )
+
+    login_response = await client.post(
+        "/api/v2/auth/login",
+        data={"username": "refresh_test", "password": "password"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    login_data = login_response.json()
+    refresh_token = login_data["refresh_token"]
+
+    refresh_response = await client.post(
+        "/api/v2/auth/refresh",
+        json={"refresh_token": refresh_token},
+    )
+
+    assert refresh_response.status_code == 200
+    refresh_data = refresh_response.json()
+    assert "access_token" in refresh_data
+    assert "refresh_token" in refresh_data

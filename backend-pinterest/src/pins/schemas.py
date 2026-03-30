@@ -1,9 +1,11 @@
 import uuid
+from datetime import datetime
 from enum import Enum
 
 from pydantic import BaseModel, ConfigDict
 
 from src.tags.schemas import TagResponse
+from src.users.schemas import UserResponse
 
 
 class PinBase(BaseModel):
@@ -30,6 +32,15 @@ class PinResponse(PinBase):
     owner_id: uuid.UUID
     image_url: str
     tags: list[TagResponse]
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PinLikeResponse(BaseModel):
+    id: uuid.UUID
+    pin: PinResponse
+    user: UserResponse
 
     model_config = ConfigDict(from_attributes=True)
 

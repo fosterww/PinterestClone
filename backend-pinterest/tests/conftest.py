@@ -4,6 +4,7 @@ from collections.abc import AsyncGenerator
 from unittest.mock import patch
 
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     AsyncEngine,
@@ -14,7 +15,7 @@ from sqlalchemy.ext.asyncio import (
 from src.database import Base, get_db
 from src.main import app
 from src.core.limiter import limiter
-from src.core.session import get_session_service
+from src.core.dependencies import get_session_service
 
 limiter.enabled = False
 
@@ -40,11 +41,23 @@ def sessionmaker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
 
 @pytest_asyncio.fixture
 async def db_session(
-    sessionmaker: async_sessionmaker[AsyncSession],
+    engine: AsyncEngine,
 ) -> AsyncGenerator[AsyncSession, None]:
-    async with sessionmaker() as session:
+    async with engine.connect() as connection:
+        transaction = await connection.begin()
+        session = AsyncSession(bind=connection, expire_on_commit=False)
+        nested = await connection.begin_nested()
+
+        @event.listens_for(session.sync_session, "after_transaction_end")
+        def reopen_nested(session_sync, transaction_sync):
+            nonlocal nested
+            if not nested.is_active:
+                nested = connection.sync_connection.begin_nested()
+
         yield session
-        await session.rollback()
+
+        await session.close()
+        await transaction.rollback()
 
 
 @pytest.fixture
@@ -65,12 +78,27 @@ def mock_session_service():
     return MockSessionService()
 
 
+@pytest.fixture
+def mock_cache_service():
+    class MockCacheService:
+        async def get_pattern(self, pattern):
+            return []
+
+        async def set(self, key, value, ttl=None):
+            pass
+
+        async def delete_pattern(self, pattern):
+            pass
+
+    return MockCacheService()
+
+
 @pytest_asyncio.fixture
 async def client(
     db_session: AsyncSession, mock_session_service
 ) -> AsyncGenerator[AsyncClient, None]:
 
-    def override_get_db():
+    async def override_get_db():
         yield db_session
 
     def override_get_session_service():

@@ -1,13 +1,18 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.tags.service import get_or_create_tag
+from src.tags.service import TagService
 from src.boards.models import TagModel
 
 
+@pytest.fixture
+def tag_svc(db_session: AsyncSession):
+    return TagService(db_session)
+
+
 @pytest.mark.asyncio
-async def test_get_or_create_tag_creates_new_tags(db_session: AsyncSession):
-    tags = await get_or_create_tag(db_session, ["nature", "travel"])
+async def test_get_or_create_tag_creates_new_tags(tag_svc: TagService):
+    tags = await tag_svc.get_or_create_tag(["nature", "travel"])
 
     assert len(tags) == 2
     names = {t.name for t in tags}
@@ -18,22 +23,22 @@ async def test_get_or_create_tag_creates_new_tags(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_get_or_create_tag_reuses_existing_tags(db_session: AsyncSession):
-    first_call = await get_or_create_tag(db_session, ["food", "lifestyle"])
+async def test_get_or_create_tag_reuses_existing_tags(tag_svc: TagService):
+    first_call = await tag_svc.get_or_create_tag(["food", "lifestyle"])
     first_ids = {t.name: t.id for t in first_call}
 
-    second_call = await get_or_create_tag(db_session, ["food", "lifestyle"])
+    second_call = await tag_svc.get_or_create_tag(["food", "lifestyle"])
     second_ids = {t.name: t.id for t in second_call}
 
     assert first_ids == second_ids
 
 
 @pytest.mark.asyncio
-async def test_get_or_create_tag_partial_reuse(db_session: AsyncSession):
-    existing = await get_or_create_tag(db_session, ["photography"])
+async def test_get_or_create_tag_partial_reuse(tag_svc: TagService):
+    existing = await tag_svc.get_or_create_tag(["photography"])
     existing_id = existing[0].id
 
-    tags = await get_or_create_tag(db_session, ["photography", "art"])
+    tags = await tag_svc.get_or_create_tag(["photography", "art"])
     names = {t.name for t in tags}
     ids_by_name = {t.name: t.id for t in tags}
 
@@ -42,6 +47,6 @@ async def test_get_or_create_tag_partial_reuse(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_get_or_create_tag_empty_list(db_session: AsyncSession):
-    result = await get_or_create_tag(db_session, [])
+async def test_get_or_create_tag_empty_list(tag_svc: TagService):
+    result = await tag_svc.get_or_create_tag([])
     assert result == []

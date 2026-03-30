@@ -24,3 +24,19 @@ class UserResponse(UserBase):
     id: uuid.UUID
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class UserInternal(UserBase):
+    id: uuid.UUID
+    hashed_password: str | None = None
+    google_id: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class GoogleLogin(BaseModel):
+    id_token: str
+
+
+class TokenRefresh(BaseModel):
+    refresh_token: str

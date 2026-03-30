@@ -6,8 +6,10 @@ from fastapi import HTTPException
 from src.core.auth import get_current_user
 from src.core.security import create_access_token
 from src.core.config import settings
-from src.auth.service import register_user
+from src.auth.service import AuthService
 from src.users.schemas import UserCreate
+from src.users.repository import UserRepository
+from src.auth.repository import AuthRepository
 
 
 @pytest.mark.asyncio
@@ -15,7 +17,10 @@ async def test_get_current_user_success(db_session: AsyncSession, mock_session_s
     user_data = UserCreate(
         username="auth_core_user", email="auth_core@example.com", password="password123"
     )
-    created_user = await register_user(db_session, user_data)
+    user_repo = UserRepository(db_session)
+    auth_repo = AuthRepository(db_session)
+    auth_svc = AuthService(db_session, mock_session_service, user_repo, auth_repo)
+    created_user = await auth_svc.register_user(user_data)
 
     token = create_access_token(
         {"sub": created_user.username, "session_id": "mock_session_id"}

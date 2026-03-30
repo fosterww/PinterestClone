@@ -13,29 +13,23 @@ from fastapi import (
     Form,
     Request,
 )
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from src.core.limiter import limiter
-from src.core.s3 import get_s3_service, S3Service
-from src.core.clarifai import get_clarifai_service, ClarifaiService
-from src.core.cache import get_cache_service, CacheService
-from src.database import get_db
+from src.core.s3 import S3Service
+from src.core.clarifai import ClarifaiService
+from src.core.dependencies import (
+    get_pin_repository,
+    get_pin_service,
+    get_s3_service,
+    get_clarifai_service,
+)
 from src.core.auth import get_current_user
 from src.users.models import UserModel
 from src.pins.schemas import PinCreate, PinUpdate, PinResponse, Pagination, FilterPins
-from src.pins.service import (
-    create_pin,
-    get_pins,
-    get_pin_by_id,
-    update_pin,
-    delete_pin,
-    get_related_pins_from_db,
-    get_pins_by_ids,
-    get_user_pins,
-    like_pin,
-    unlike_pin,
-)
+
+from src.pins.repository import PinRepository
+from src.pins.service import PinService
 from src.pins.task import index_image_task, delete_image_task
+
 
 router = APIRouter()
 
@@ -51,7 +45,7 @@ async def create_new_pin(
     link_url: Optional[str] = Form(None),
     tags: Annotated[list[str], Form()] = [],
     current_user: UserModel = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    service: PinService = Depends(get_pin_service),
 ) -> PinResponse:
     allowed = {"image/jpeg", "image/png", "image/webp", "image/gif"}
     if image.content_type not in allowed:
@@ -65,7 +59,7 @@ async def create_new_pin(
 
     image_url = await s3_service.upload_image_to_s3(image)
     data = PinCreate(title=title, description=description, link_url=link_url, tags=tags)
-    pin = await create_pin(db, current_user, data, image_url=image_url)
+    pin = await service.create_pin(current_user, data, image_url=image_url)
 
     base64_image = base64.b64encode(content).decode("utf-8")
     index_image_task.delay(str(pin.id), base64_image)
@@ -79,10 +73,9 @@ async def list_pins(
     tags: Annotated[list[str], Query()] = [],
     pagination: Pagination = Depends(),
     filter_pins: FilterPins = Depends(),
-    db: AsyncSession = Depends(get_db),
+    repo: PinRepository = Depends(get_pin_repository),
 ) -> list[PinResponse]:
-    return await get_pins(
-        db,
+    return await repo.get_pins(
         offset=pagination.offset,
         limit=pagination.limit,
         search=pagination.search,
@@ -95,9 +88,14 @@ async def list_pins(
 @router.get("/{pin_id}")
 @limiter.limit("10/minute")
 async def read_pin(
-    request: Request, pin_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+    request: Request,
+    pin_id: uuid.UUID,
+    repo: PinRepository = Depends(get_pin_repository),
 ) -> PinResponse:
-    return await get_pin_by_id(db, pin_id)
+    pin = await repo.get_pin_by_id(pin_id)
+    if pin is None:
+        raise HTTPException(status_code=404, detail="Pin not found")
+    return PinResponse.model_validate(pin)
 
 
 @router.get("/user/{username}")
@@ -105,9 +103,9 @@ async def read_pin(
 async def read_user_pins(
     request: Request,
     username: str,
-    db: AsyncSession = Depends(get_db),
+    repo: PinRepository = Depends(get_pin_repository),
 ) -> List[PinResponse]:
-    return await get_user_pins(username, db)
+    return await repo.get_user_pins(username)
 
 
 @router.post("/{pin_id}/like")
@@ -116,9 +114,9 @@ async def like_pin_handler(
     request: Request,
     pin_id: uuid.UUID,
     current_user: UserModel = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    service: PinService = Depends(get_pin_service),
 ) -> PinResponse:
-    return await like_pin(db, pin_id, current_user.id)
+    return await service.like_pin(pin_id, current_user.id)
 
 
 @router.post("/{pin_id}/unlike")
@@ -127,9 +125,9 @@ async def unlike_pin_handler(
     request: Request,
     pin_id: uuid.UUID,
     current_user: UserModel = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    service: PinService = Depends(get_pin_service),
 ) -> PinResponse:
-    return await unlike_pin(db, pin_id, current_user.id)
+    return await service.unlike_pin(pin_id, current_user.id)
 
 
 @router.patch("/{pin_id}")
@@ -139,10 +137,11 @@ async def patch_pin(
     pin_id: uuid.UUID,
     data: PinUpdate,
     current_user: UserModel = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    service: PinService = Depends(get_pin_service),
+    repo: PinRepository = Depends(get_pin_repository),
 ) -> PinResponse:
-    pin = await get_pin_by_id(db, pin_id)
-    return await update_pin(db, pin, data, current_user)
+    pin = await repo.get_pin_by_id(pin_id)
+    return await service.update_pin(pin, data, current_user)
 
 
 @router.delete("/{pin_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -151,10 +150,11 @@ async def remove_pin(
     request: Request,
     pin_id: uuid.UUID,
     current_user: UserModel = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    service: PinService = Depends(get_pin_service),
+    repo: PinRepository = Depends(get_pin_repository),
 ):
-    pin = await get_pin_by_id(db, pin_id)
-    await delete_pin(db, pin, current_user)
+    pin = await repo.get_pin_by_id(pin_id)
+    await service.delete_pin(pin, current_user)
 
     delete_image_task.delay(str(pin_id))
 
@@ -164,15 +164,13 @@ async def remove_pin(
 async def get_related_pins(
     request: Request,
     pin_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
     clarifai_service: ClarifaiService = Depends(get_clarifai_service),
-    cache_service: CacheService = Depends(get_cache_service),
+    service: PinService = Depends(get_pin_service),
+    repo: PinRepository = Depends(get_pin_repository),
 ) -> list[PinResponse]:
     similar_ids = await clarifai_service.search_similar_images_by_id(str(pin_id))
-    db_related_pins = await get_related_pins_from_db(
-        db, pin_id, limit=20, cache_service=cache_service
-    )
-    clarifai_pins = await get_pins_by_ids(db, similar_ids)
+    db_related_pins = await service.get_related_pins(pin_id, limit=20)
+    clarifai_pins = await repo.get_pins_by_ids(similar_ids)
 
     seen_ids = set()
     merged_pins = []

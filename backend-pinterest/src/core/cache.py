@@ -2,7 +2,6 @@ from typing import Any
 from redis.asyncio import Redis, RedisError
 
 from src.core.logger import logger
-from src.core.config import settings
 
 
 class CacheService:
@@ -57,12 +56,3 @@ class CacheService:
         except RedisError as e:
             logger.error(f"Error deleting keys with pattern {pattern}: {e}")
             raise Exception(f"Error delete keys with pattern {pattern}")
-
-
-async def get_cache_service() -> CacheService:
-    redis = await Redis.from_url(
-        settings.redis_url,
-        decode_responses=True,
-        socket_timeout=settings.redis_socket_timeout,
-    )
-    return CacheService(redis)
