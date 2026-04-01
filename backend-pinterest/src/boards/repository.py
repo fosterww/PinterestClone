@@ -58,7 +58,9 @@ class BoardRepository:
                 .options(
                     joinedload(BoardModel.user),
                     selectinload(BoardModel.pins).selectinload(PinModel.tags),
-                    selectinload(BoardModel.pins).selectinload(PinModel.comments).selectinload(PinCommentModel.user),
+                    selectinload(BoardModel.pins)
+                    .selectinload(PinModel.comments)
+                    .selectinload(PinCommentModel.user),
                 )
             )
             return result.scalar_one_or_none()

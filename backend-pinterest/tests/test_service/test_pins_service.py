@@ -439,7 +439,9 @@ async def test_update_comment(pin_svc: PinService, sample_user):
         mock_image_file(), sample_user, PinCreate(title="Comment Test")
     )
     comment = await pin_svc.add_comment(pin.id, sample_user.id, "Great pin!")
-    updated_comment = await pin_svc.update_comment(comment.id, sample_user.id, "Great pin! Updated")
+    updated_comment = await pin_svc.update_comment(
+        comment.id, sample_user.id, "Great pin! Updated"
+    )
     assert updated_comment.comment == "Great pin! Updated"
     assert updated_comment.user_id == sample_user.id
     assert updated_comment.pin_id == pin.id

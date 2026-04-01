@@ -207,11 +207,11 @@ class PinService:
         comment = await self.repo.get_comment_by_id(comment_id)
         if not comment:
             raise NotFoundError("Comment not found")
-        
+
         existing_like = await self.repo.get_comment_like(comment_id, user_id)
         if existing_like:
             raise ConflictError("Comment already liked")
-            
+
         return await self.repo.add_comment_like(comment, user_id)
 
     async def delete_comment_like(
@@ -223,11 +223,11 @@ class PinService:
         comment = await self.repo.get_comment_by_id(comment_id)
         if not comment:
             raise NotFoundError("Comment not found")
-            
+
         like = await self.repo.get_comment_like(comment_id, user_id)
         if not like:
             raise NotFoundError("Comment like not found")
-            
+
         return await self.repo.delete_comment_like(comment, like)
 
     async def update_comment(
