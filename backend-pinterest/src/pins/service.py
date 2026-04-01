@@ -184,6 +184,12 @@ class PinService:
             raise NotFoundError("Pin not found")
         return await self.repo.get_comments(pin_id)
 
+    async def get_comment_by_id(self, comment_id: uuid.UUID) -> PinCommentModel:
+        comment = await self.repo.get_comment_by_id(comment_id)
+        if not comment:
+            raise NotFoundError("Comment not found")
+        return comment
+
     async def add_comment(
         self, pin_id: uuid.UUID, user_id: uuid.UUID, text: str
     ) -> PinCommentModel:
@@ -193,7 +199,7 @@ class PinService:
         return await self.repo.add_comment(pin_id, user_id, text)
 
     async def add_comment_like(
-        self, pin_id: uuid.UUID, comment_id: uuid.UUID
+        self, pin_id: uuid.UUID, comment_id: uuid.UUID, user_id: uuid.UUID
     ) -> PinCommentModel:
         pin = await self.repo.get_pin_by_id(pin_id)
         if not pin:
@@ -201,10 +207,15 @@ class PinService:
         comment = await self.repo.get_comment_by_id(comment_id)
         if not comment:
             raise NotFoundError("Comment not found")
-        return await self.repo.add_comment_like(comment)
+        
+        existing_like = await self.repo.get_comment_like(comment_id, user_id)
+        if existing_like:
+            raise ConflictError("Comment already liked")
+            
+        return await self.repo.add_comment_like(comment, user_id)
 
     async def delete_comment_like(
-        self, pin_id: uuid.UUID, comment_id: uuid.UUID
+        self, pin_id: uuid.UUID, comment_id: uuid.UUID, user_id: uuid.UUID
     ) -> PinCommentModel:
         pin = await self.repo.get_pin_by_id(pin_id)
         if not pin:
@@ -212,7 +223,12 @@ class PinService:
         comment = await self.repo.get_comment_by_id(comment_id)
         if not comment:
             raise NotFoundError("Comment not found")
-        return await self.repo.delete_comment_like(comment)
+            
+        like = await self.repo.get_comment_like(comment_id, user_id)
+        if not like:
+            raise NotFoundError("Comment like not found")
+            
+        return await self.repo.delete_comment_like(comment, like)
 
     async def update_comment(
         self, comment_id: uuid.UUID, user_id: uuid.UUID, text: str

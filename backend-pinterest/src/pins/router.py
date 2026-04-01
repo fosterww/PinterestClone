@@ -179,7 +179,7 @@ async def like_comment(
     current_user: UserModel = Depends(get_current_user),
     service: PinService = Depends(get_pin_service),
 ) -> PinCommentResponse:
-    return await service.add_comment_like(pin_id, comment_id)
+    return await service.add_comment_like(pin_id, comment_id, current_user.id)
 
 
 @router.post("/{pin_id}/comments/{comment_id}/unlike")
@@ -191,7 +191,7 @@ async def unlike_comment(
     current_user: UserModel = Depends(get_current_user),
     service: PinService = Depends(get_pin_service),
 ) -> PinCommentResponse:
-    return await service.delete_comment_like(pin_id, comment_id)
+    return await service.delete_comment_like(pin_id, comment_id, current_user.id)
 
 
 @router.patch("/{pin_id}/comments/{comment_id}")

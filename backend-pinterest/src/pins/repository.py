@@ -13,6 +13,7 @@ from src.boards.models import (
     TagModel,
     pin_tag_association,
     PinCommentModel,
+    PinCommentLikeModel,
 )
 from src.users.models import UserModel
 from src.pins.schemas import (
@@ -285,8 +286,28 @@ class PinRepository:
             logger.error(f"Database error while adding comment: {pin_id}, {user_id}")
             raise AppError()
 
-    async def add_comment_like(self, comment: PinCommentModel) -> PinCommentModel:
+    async def get_comment_like(
+        self, comment_id: uuid.UUID, user_id: uuid.UUID
+    ) -> PinCommentLikeModel | None:
         try:
+            result = await self.db.execute(
+                select(PinCommentLikeModel)
+                .where(PinCommentLikeModel.comment_id == comment_id)
+                .where(PinCommentLikeModel.user_id == user_id)
+            )
+            return result.scalar_one_or_none()
+        except SQLAlchemyError:
+            logger.error(
+                f"Database error while fetching comment like: {comment_id}, {user_id}"
+            )
+            raise AppError()
+
+    async def add_comment_like(
+        self, comment: PinCommentModel, user_id: uuid.UUID
+    ) -> PinCommentModel:
+        try:
+            like = PinCommentLikeModel(comment_id=comment.id, user_id=user_id)
+            self.db.add(like)
             comment.likes_count += 1
             await self.db.flush()
             result = await self.db.execute(
@@ -298,15 +319,19 @@ class PinRepository:
         except IntegrityError:
             await self.db.rollback()
             logger.error(f"Integrity error while adding comment like: {comment.id}")
-            raise ConflictError("Comment like not added")
+            raise ConflictError("Comment like already exists")
         except SQLAlchemyError:
             await self.db.rollback()
             logger.error(f"Database error while adding comment like: {comment.id}")
             raise AppError()
 
-    async def delete_comment_like(self, comment: PinCommentModel) -> PinCommentModel:
+    async def delete_comment_like(
+        self, comment: PinCommentModel, like: PinCommentLikeModel
+    ) -> PinCommentModel:
         try:
-            comment.likes_count -= 1
+            await self.db.delete(like)
+            if comment.likes_count > 0:
+                comment.likes_count -= 1
             await self.db.flush()
             result = await self.db.execute(
                 select(PinCommentModel)
@@ -314,10 +339,6 @@ class PinRepository:
                 .options(selectinload(PinCommentModel.user))
             )
             return result.scalar_one()
-        except IntegrityError:
-            await self.db.rollback()
-            logger.error(f"Integrity error while deleting comment like: {comment.id}")
-            raise ConflictError("Comment like not deleted")
         except SQLAlchemyError:
             await self.db.rollback()
             logger.error(f"Database error while deleting comment like: {comment.id}")
