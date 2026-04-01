@@ -3,6 +3,7 @@ import httpx
 
 from tenacity import retry, stop_after_attempt, wait_exponential
 from src.core.logger import logger
+from src.core.config import settings
 
 
 class ClarifaiService:
@@ -90,3 +91,9 @@ class ClarifaiService:
             logger.info(f"Successfully deleted pin {pin_id}")
         except Exception as e:
             logger.error(f"Failed to delete image in Clarifai: {e}")
+
+
+async def get_clarifai_service() -> ClarifaiService:
+    return ClarifaiService(
+        settings.clarifai_api_key, settings.clarifai_app_id, settings.clarifai_user_id
+    )

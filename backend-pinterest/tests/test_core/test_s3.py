@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi import HTTPException, UploadFile
 
-from src.core.s3 import S3Service
+from src.core.infra.s3 import S3Service
 
 
 @pytest.fixture
@@ -25,7 +25,9 @@ async def test_upload_image_to_s3_success(mock_s3_client):
     mock_context_manager.__aexit__ = AsyncMock(return_value=False)
     mock_session_instance.client.return_value = mock_context_manager
 
-    with patch("src.core.s3.aioboto3.Session", return_value=mock_session_instance):
+    with patch(
+        "src.core.infra.s3.aioboto3.Session", return_value=mock_session_instance
+    ):
         service = S3Service()
         url = await service.upload_image_to_s3(mock_file)
 
@@ -48,7 +50,9 @@ async def test_upload_image_to_s3_no_extension(mock_s3_client):
     mock_context_manager.__aexit__ = AsyncMock(return_value=False)
     mock_session_instance.client.return_value = mock_context_manager
 
-    with patch("src.core.s3.aioboto3.Session", return_value=mock_session_instance):
+    with patch(
+        "src.core.infra.s3.aioboto3.Session", return_value=mock_session_instance
+    ):
         service = S3Service()
         url = await service.upload_image_to_s3(mock_file)
 
@@ -69,7 +73,9 @@ async def test_upload_image_to_s3_failure(mock_s3_client):
     mock_context_manager.__aexit__ = AsyncMock(return_value=False)
     mock_session_instance.client.return_value = mock_context_manager
 
-    with patch("src.core.s3.aioboto3.Session", return_value=mock_session_instance):
+    with patch(
+        "src.core.infra.s3.aioboto3.Session", return_value=mock_session_instance
+    ):
         with pytest.raises(HTTPException) as excinfo:
             service = S3Service()
             await service.upload_image_to_s3(mock_file)

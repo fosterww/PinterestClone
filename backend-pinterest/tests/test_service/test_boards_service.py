@@ -1,4 +1,9 @@
 import pytest
+
+from fastapi import UploadFile
+import io
+
+
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException
@@ -21,6 +26,15 @@ from src.auth.repository import AuthRepository
 from src.tags.service import TagService
 
 
+def mock_image_file():
+    content = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\x0bIDAT\x08\xd7c\x60\x00\x02\x00\x00\x05\x00\x01^\xf3*:\x00\x00\x00\x00IEND\xaeB`\x82"
+    return UploadFile(
+        filename="test.png",
+        file=io.BytesIO(content),
+        headers={"content-type": "image/png"},
+    )
+
+
 @pytest.fixture
 def auth_svc(db_session: AsyncSession, mock_session_service):
     user_repo = UserRepository(db_session)
@@ -29,10 +43,12 @@ def auth_svc(db_session: AsyncSession, mock_session_service):
 
 
 @pytest.fixture
-def pin_svc(db_session: AsyncSession, mock_cache_service):
+def pin_svc(db_session: AsyncSession, mock_cache_service, mock_s3_service):
     repo = PinRepository(db_session)
     tag_service = TagService(db_session)
-    return PinService(db_session, mock_cache_service, repo, tag_service)
+    return PinService(
+        db_session, mock_cache_service, repo, tag_service, mock_s3_service
+    )
 
 
 @pytest.fixture
@@ -64,7 +80,7 @@ async def another_user(auth_svc: AuthService):
 @pytest_asyncio.fixture
 async def sample_pin(pin_svc: PinService, sample_user):
     pin_data = PinCreate(title="Test Pin for Board")
-    return await pin_svc.create_pin(sample_user, pin_data, "http://image.jpg")
+    return await pin_svc.create_pin(mock_image_file(), sample_user, pin_data)
 
 
 @pytest.mark.asyncio

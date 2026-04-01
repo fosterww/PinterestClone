@@ -7,14 +7,18 @@ from sqlalchemy.orm import selectinload
 
 from src.core.exception import AppError, ConflictError
 from src.core.logger import logger
-from src.boards.models import PinModel, PinLikeModel, TagModel, pin_tag_association
+from src.boards.models import (
+    PinModel,
+    PinLikeModel,
+    TagModel,
+    pin_tag_association,
+    PinCommentModel,
+)
 from src.users.models import UserModel
 from src.pins.schemas import (
     CreatedAt,
     Popularity,
     PinCreate,
-    PinResponse,
-    PinLikeResponse,
 )
 from sqlalchemy import func
 
@@ -25,7 +29,7 @@ class PinRepository:
 
     async def create_pin(
         self, owner: UserModel, data: PinCreate, image_url: str, tags: list[TagModel]
-    ) -> PinResponse:
+    ) -> PinModel:
         try:
             create_data = data.model_dump(exclude_unset=True)
             if "tags" in create_data:
@@ -41,9 +45,12 @@ class PinRepository:
             result = await self.db.execute(
                 select(PinModel)
                 .where(PinModel.id == pin.id)
-                .options(selectinload(PinModel.tags))
+                .options(
+                    selectinload(PinModel.tags),
+                    selectinload(PinModel.comments).selectinload(PinCommentModel.user),
+                )
             )
-            return PinResponse.model_validate(result.scalar_one())
+            return result.scalar_one()
         except SQLAlchemyError:
             await self.db.rollback()
             logger.error(f"Database error while creating pin: {owner.id}")
@@ -57,9 +64,12 @@ class PinRepository:
         tags: list[str] = [],
         created_at: CreatedAt | None = None,
         popularity: Popularity | None = None,
-    ) -> list[PinResponse]:
+    ) -> List[PinModel]:
         try:
-            query = select(PinModel).options(selectinload(PinModel.tags))
+            query = select(PinModel).options(
+                selectinload(PinModel.tags),
+                selectinload(PinModel.comments).selectinload(PinCommentModel.user),
+            )
 
             if search:
                 query = query.where(PinModel.title.icontains(search))
@@ -78,7 +88,7 @@ class PinRepository:
                 query = query.order_by(PinModel.likes_count.asc())
 
             result = await self.db.execute(query.offset(offset).limit(limit))
-            return [PinResponse.model_validate(pin) for pin in result.scalars().all()]
+            return result.scalars().all()
         except SQLAlchemyError:
             logger.error(f"Database error while fetching pins: {offset}, {limit}")
             raise AppError()
@@ -88,14 +98,17 @@ class PinRepository:
             result = await self.db.execute(
                 select(PinModel)
                 .where(PinModel.id == pin_id)
-                .options(selectinload(PinModel.tags))
+                .options(
+                    selectinload(PinModel.tags),
+                    selectinload(PinModel.comments).selectinload(PinCommentModel.user),
+                )
             )
             return result.scalar_one_or_none()
         except SQLAlchemyError:
             logger.error(f"Database error while fetching pin: {pin_id}")
             raise AppError()
 
-    async def get_pins_by_ids(self, pin_ids: list[str]) -> list[PinResponse]:
+    async def get_pins_by_ids(self, pin_ids: list[str]) -> List[PinModel]:
         try:
             uuids = []
             for pid in pin_ids:
@@ -108,23 +121,29 @@ class PinRepository:
             result = await self.db.execute(
                 select(PinModel)
                 .where(PinModel.id.in_(uuids))
-                .options(selectinload(PinModel.tags))
+                .options(
+                    selectinload(PinModel.tags),
+                    selectinload(PinModel.comments).selectinload(PinCommentModel.user),
+                )
             )
-            return [PinResponse.model_validate(pin) for pin in result.scalars().all()]
+            return result.scalars().all()
         except SQLAlchemyError:
             logger.error(f"Database error while fetching pins by IDs: {pin_ids}")
             raise AppError()
 
-    async def get_user_pins(self, username: str) -> List[PinResponse]:
+    async def get_user_pins(self, username: str) -> List[PinModel]:
         try:
             result = await self.db.execute(
                 select(PinModel)
                 .join(UserModel)
                 .where(UserModel.username == username)
-                .options(selectinload(PinModel.tags))
+                .options(
+                    selectinload(PinModel.tags),
+                    selectinload(PinModel.comments).selectinload(PinCommentModel.user),
+                )
                 .order_by(PinModel.created_at.desc())
             )
-            return [PinResponse.model_validate(pin) for pin in result.scalars().all()]
+            return result.scalars().all()
         except SQLAlchemyError:
             logger.error(f"Database error while fetching user pins: {username}")
             raise AppError()
@@ -139,7 +158,12 @@ class PinRepository:
                 .where(PinLikeModel.user_id == user_id)
                 .options(
                     selectinload(PinLikeModel.user),
-                    selectinload(PinLikeModel.pin).selectinload(PinModel.tags),
+                    selectinload(PinLikeModel.pin).options(
+                        selectinload(PinModel.tags),
+                        selectinload(PinModel.comments).selectinload(
+                            PinCommentModel.user
+                        ),
+                    ),
                 )
             )
             return result.scalar_one_or_none()
@@ -147,7 +171,7 @@ class PinRepository:
             logger.error(f"Database error while fetching pin like: {pin_id}, {user_id}")
             raise AppError()
 
-    async def add_like(self, pin_id: uuid.UUID, user_id: uuid.UUID) -> PinLikeResponse:
+    async def add_like(self, pin_id: uuid.UUID, user_id: uuid.UUID) -> PinLikeModel:
         try:
             like = PinLikeModel(pin_id=pin_id, user_id=user_id)
             self.db.add(like)
@@ -158,10 +182,15 @@ class PinRepository:
                 .where(PinLikeModel.user_id == user_id)
                 .options(
                     selectinload(PinLikeModel.user),
-                    selectinload(PinLikeModel.pin).selectinload(PinModel.tags),
+                    selectinload(PinLikeModel.pin).options(
+                        selectinload(PinModel.tags),
+                        selectinload(PinModel.comments).selectinload(
+                            PinCommentModel.user
+                        ),
+                    ),
                 )
             )
-            return PinLikeResponse.model_validate(result.scalar_one())
+            return result.scalar_one()
         except SQLAlchemyError:
             await self.db.rollback()
             logger.error(f"Database error while adding pin like: {pin_id}, {user_id}")
@@ -178,7 +207,7 @@ class PinRepository:
             )
             raise AppError()
 
-    async def update_pin(self, pin: PinModel, data: dict) -> PinResponse:
+    async def update_pin(self, pin: PinModel, data: dict) -> PinModel:
         for field, value in data.items():
             setattr(pin, field, value)
         try:
@@ -186,9 +215,12 @@ class PinRepository:
             result = await self.db.execute(
                 select(PinModel)
                 .where(PinModel.id == pin.id)
-                .options(selectinload(PinModel.tags))
+                .options(
+                    selectinload(PinModel.tags),
+                    selectinload(PinModel.comments).selectinload(PinCommentModel.user),
+                )
             )
-            return PinResponse.model_validate(result.scalar_one())
+            return result.scalar_one()
         except IntegrityError:
             await self.db.rollback()
             logger.error(f"Database error while updating pin: {pin.id}")
@@ -207,9 +239,123 @@ class PinRepository:
             logger.error(f"Database error while deleting pin: {pin.id}")
             raise AppError()
 
+    async def get_comments(self, pin_id: uuid.UUID) -> List[PinCommentModel]:
+        try:
+            result = await self.db.execute(
+                select(PinCommentModel)
+                .where(PinCommentModel.pin_id == pin_id)
+                .options(selectinload(PinCommentModel.user))
+            )
+            return result.scalars().all()
+        except SQLAlchemyError:
+            logger.error(f"Database error while fetching comments: {pin_id}")
+            raise AppError()
+
+    async def get_comment_by_id(self, comment_id: uuid.UUID) -> PinCommentModel | None:
+        try:
+            result = await self.db.execute(
+                select(PinCommentModel)
+                .where(PinCommentModel.id == comment_id)
+                .options(selectinload(PinCommentModel.user))
+            )
+            return result.scalar_one_or_none()
+        except SQLAlchemyError:
+            logger.error(f"Database error while fetching comment: {comment_id}")
+            raise AppError()
+
+    async def add_comment(
+        self, pin_id: uuid.UUID, user_id: uuid.UUID, text: str
+    ) -> PinCommentModel:
+        try:
+            comment = PinCommentModel(pin_id=pin_id, user_id=user_id, comment=text)
+            self.db.add(comment)
+            await self.db.flush()
+            result = await self.db.execute(
+                select(PinCommentModel)
+                .where(PinCommentModel.id == comment.id)
+                .options(selectinload(PinCommentModel.user))
+            )
+            return result.scalar_one()
+        except IntegrityError:
+            await self.db.rollback()
+            logger.error(f"Integrity error while adding comment: {pin_id}, {user_id}")
+            raise ConflictError("Comment not added")
+        except SQLAlchemyError:
+            await self.db.rollback()
+            logger.error(f"Database error while adding comment: {pin_id}, {user_id}")
+            raise AppError()
+
+    async def add_comment_like(self, comment: PinCommentModel) -> PinCommentModel:
+        try:
+            comment.likes_count += 1
+            await self.db.flush()
+            result = await self.db.execute(
+                select(PinCommentModel)
+                .where(PinCommentModel.id == comment.id)
+                .options(selectinload(PinCommentModel.user))
+            )
+            return result.scalar_one()
+        except IntegrityError:
+            await self.db.rollback()
+            logger.error(f"Integrity error while adding comment like: {comment.id}")
+            raise ConflictError("Comment like not added")
+        except SQLAlchemyError:
+            await self.db.rollback()
+            logger.error(f"Database error while adding comment like: {comment.id}")
+            raise AppError()
+
+    async def delete_comment_like(self, comment: PinCommentModel) -> PinCommentModel:
+        try:
+            comment.likes_count -= 1
+            await self.db.flush()
+            result = await self.db.execute(
+                select(PinCommentModel)
+                .where(PinCommentModel.id == comment.id)
+                .options(selectinload(PinCommentModel.user))
+            )
+            return result.scalar_one()
+        except IntegrityError:
+            await self.db.rollback()
+            logger.error(f"Integrity error while deleting comment like: {comment.id}")
+            raise ConflictError("Comment like not deleted")
+        except SQLAlchemyError:
+            await self.db.rollback()
+            logger.error(f"Database error while deleting comment like: {comment.id}")
+            raise AppError()
+
+    async def update_comment(
+        self, pin_comment: PinCommentModel, text: str
+    ) -> PinCommentModel:
+        try:
+            pin_comment.comment = text
+            await self.db.flush()
+            result = await self.db.execute(
+                select(PinCommentModel)
+                .where(PinCommentModel.id == pin_comment.id)
+                .options(selectinload(PinCommentModel.user))
+            )
+            return result.scalar_one()
+        except IntegrityError:
+            await self.db.rollback()
+            logger.error(f"Integrity error while updating comment: {pin_comment.id}")
+            raise ConflictError("Comment not updated")
+        except SQLAlchemyError:
+            await self.db.rollback()
+            logger.error(f"Database error while updating comment: {pin_comment.id}")
+            raise AppError()
+
+    async def delete_comment(self, pin_comment: PinCommentModel) -> None:
+        try:
+            await self.db.delete(pin_comment)
+            await self.db.flush()
+        except SQLAlchemyError:
+            await self.db.rollback()
+            logger.error(f"Database error while deleting comment: {pin_comment.id}")
+            raise AppError()
+
     async def get_related_by_tags(
         self, exclude_pin_id: uuid.UUID, tag_ids: list[uuid.UUID], limit: int
-    ) -> list[PinResponse]:
+    ) -> list[PinModel]:
         try:
             query = (
                 select(PinModel)
@@ -221,11 +367,14 @@ class PinRepository:
                     func.count(pin_tag_association.c.tag_id).desc(),
                     PinModel.created_at.desc(),
                 )
-                .options(selectinload(PinModel.tags))
+                .options(
+                    selectinload(PinModel.tags),
+                    selectinload(PinModel.comments).selectinload(PinCommentModel.user),
+                )
                 .limit(limit)
             )
             result = await self.db.execute(query)
-            return [PinResponse.model_validate(pin) for pin in result.scalars().all()]
+            return result.scalars().all()
         except SQLAlchemyError:
             logger.error(
                 f"Database error while fetching related pins: {exclude_pin_id}, {tag_ids}, {limit}"

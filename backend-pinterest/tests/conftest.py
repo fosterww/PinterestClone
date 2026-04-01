@@ -14,8 +14,8 @@ from sqlalchemy.ext.asyncio import (
 
 from src.database import Base, get_db
 from src.main import app
-from src.core.limiter import limiter
-from src.core.dependencies import get_session_service
+from src.core.security.limiter import limiter
+from src.core.dependencies import get_session_service, get_s3_service
 
 limiter.enabled = False
 
@@ -93,9 +93,18 @@ def mock_cache_service():
     return MockCacheService()
 
 
+@pytest.fixture
+def mock_s3_service():
+    class MockS3Service:
+        async def upload_image_to_s3(self, image):
+            return "http://mock-s3-url.com/image.jpg"
+
+    return MockS3Service()
+
+
 @pytest_asyncio.fixture
 async def client(
-    db_session: AsyncSession, mock_session_service
+    db_session: AsyncSession, mock_session_service, mock_s3_service
 ) -> AsyncGenerator[AsyncClient, None]:
 
     async def override_get_db():
@@ -104,8 +113,12 @@ async def client(
     def override_get_session_service():
         return mock_session_service
 
+    def override_get_s3_service():
+        return mock_s3_service
+
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_session_service] = override_get_session_service
+    app.dependency_overrides[get_s3_service] = override_get_s3_service
 
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
@@ -118,7 +131,20 @@ async def client(
 @pytest.fixture(autouse=True)
 def mock_celery_tasks():
     with (
-        patch("src.pins.router.index_image_task.delay") as mock_index,
-        patch("src.pins.router.delete_image_task.delay") as mock_delete,
+        patch("src.pins.task.index_image_task.delay") as mock_index,
+        patch("src.pins.task.delete_image_task.delay") as mock_delete,
     ):
         yield mock_index, mock_delete
+
+
+@pytest.fixture(autouse=True)
+def mock_pil_image_open():
+    from unittest.mock import MagicMock
+
+    mock_img = MagicMock()
+    mock_img.size = (100, 100)
+    mock_img.__enter__ = MagicMock(return_value=mock_img)
+    mock_img.__exit__ = MagicMock(return_value=False)
+
+    with patch("src.pins.service.Image.open", return_value=mock_img):
+        yield

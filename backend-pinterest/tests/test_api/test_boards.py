@@ -1,6 +1,5 @@
 import pytest
 from httpx import AsyncClient
-from unittest.mock import patch, AsyncMock
 import io
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -48,18 +47,14 @@ async def test_boards_flow(
     assert board is not None
     board_id = board.id
 
-    with patch(
-        "src.core.s3.S3Service.upload_image_to_s3", new_callable=AsyncMock
-    ) as mock_s3:
-        mock_s3.return_value = "http://fake.com/image.jpg"
-        pin_response = await client.post(
-            "/api/v2/pins/",
-            data={"title": "Paris"},
-            files={"image": ("test.jpg", io.BytesIO(fake_image), "image/jpeg")},
-            headers=headers,
-        )
-        assert pin_response.status_code == 201
-        pin_id = pin_response.json()["id"]
+    pin_response = await client.post(
+        "/api/v2/pins/",
+        data={"title": "Paris"},
+        files={"image": ("test.jpg", io.BytesIO(fake_image), "image/jpeg")},
+        headers=headers,
+    )
+    assert pin_response.status_code == 201
+    pin_id = pin_response.json()["id"]
 
     response = await client.post(
         f"/api/v2/boards/{board_id}/pins/{pin_id}", headers=headers

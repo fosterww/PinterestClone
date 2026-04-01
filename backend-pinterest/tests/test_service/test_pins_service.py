@@ -1,4 +1,8 @@
 import pytest
+
+from fastapi import UploadFile
+import io
+
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException
@@ -14,6 +18,15 @@ from src.auth.repository import AuthRepository
 from src.tags.service import TagService
 
 
+def mock_image_file():
+    content = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\x0bIDAT\x08\xd7c\x60\x00\x02\x00\x00\x05\x00\x01^\xf3*:\x00\x00\x00\x00IEND\xaeB`\x82"
+    return UploadFile(
+        filename="test.png",
+        file=io.BytesIO(content),
+        headers={"content-type": "image/png"},
+    )
+
+
 @pytest.fixture
 def auth_svc(db_session: AsyncSession, mock_session_service):
     user_repo = UserRepository(db_session)
@@ -22,10 +35,12 @@ def auth_svc(db_session: AsyncSession, mock_session_service):
 
 
 @pytest.fixture
-def pin_svc(db_session: AsyncSession, mock_cache_service):
+def pin_svc(db_session: AsyncSession, mock_cache_service, mock_s3_service):
     repo = PinRepository(db_session)
     tag_service = TagService(db_session)
-    return PinService(db_session, mock_cache_service, repo, tag_service)
+    return PinService(
+        db_session, mock_cache_service, repo, tag_service, mock_s3_service
+    )
 
 
 @pytest_asyncio.fixture
@@ -55,12 +70,11 @@ async def test_create_and_get_pin_no_tags(pin_svc: PinService, sample_user):
         description="A beautiful test pin",
         link_url="https://example.com",
     )
-    image_url = "https://example.com/image.jpg"
 
-    created_pin = await pin_svc.create_pin(sample_user, pin_data, image_url)
+    created_pin = await pin_svc.create_pin(mock_image_file(), sample_user, pin_data)
     assert created_pin is not None
     assert created_pin.title == "Test Pin"
-    assert created_pin.image_url == image_url
+    assert created_pin.image_url == "http://mock-s3-url.com/image.jpg"
     assert created_pin.owner_id == sample_user.id
     assert created_pin.tags == []
 
@@ -73,9 +87,8 @@ async def test_create_and_get_pin_no_tags(pin_svc: PinService, sample_user):
 @pytest.mark.asyncio
 async def test_create_pin_with_tags(pin_svc: PinService, sample_user):
     pin_data = PinCreate(title="Tagged Pin", tags=["nature", "travel"])
-    image_url = "https://example.com/image.jpg"
 
-    created_pin = await pin_svc.create_pin(sample_user, pin_data, image_url)
+    created_pin = await pin_svc.create_pin(mock_image_file(), sample_user, pin_data)
     assert created_pin is not None
     tag_names = {t.name for t in created_pin.tags}
     assert tag_names == {"nature", "travel"}
@@ -84,14 +97,10 @@ async def test_create_pin_with_tags(pin_svc: PinService, sample_user):
 @pytest.mark.asyncio
 async def test_create_pin_reuses_existing_tags(pin_svc: PinService, sample_user):
     pin1 = await pin_svc.create_pin(
-        sample_user,
-        PinCreate(title="Pin 1", tags=["cats"]),
-        "http://img.jpg",
+        mock_image_file(), sample_user, PinCreate(title="Pin 1", tags=["cats"])
     )
     pin2 = await pin_svc.create_pin(
-        sample_user,
-        PinCreate(title="Pin 2", tags=["cats"]),
-        "http://img.jpg",
+        mock_image_file(), sample_user, PinCreate(title="Pin 2", tags=["cats"])
     )
 
     tag_id_pin1 = {t.name: t.id for t in pin1.tags}["cats"]
@@ -101,11 +110,9 @@ async def test_create_pin_reuses_existing_tags(pin_svc: PinService, sample_user)
 
 @pytest.mark.asyncio
 async def test_get_pins_pagination(pin_svc: PinService, sample_user):
-    image_url = "https://example.com/image.jpg"
-
     for i in range(5):
         pin_data = PinCreate(title=f"Pin {i}")
-        await pin_svc.create_pin(sample_user, pin_data, image_url)
+        await pin_svc.create_pin(mock_image_file(), sample_user, pin_data)
 
     pins_page_1 = await pin_svc.get_pins(offset=0, limit=3)
     assert len(pins_page_1) == 3
@@ -119,8 +126,7 @@ async def test_update_pin_success_and_forbidden(
     pin_svc: PinService, sample_user, another_user
 ):
     pin_data = PinCreate(title="Original Title", tags=["old-tag"])
-    image_url = "https://example.com/image.jpg"
-    created_pin = await pin_svc.create_pin(sample_user, pin_data, image_url)
+    created_pin = await pin_svc.create_pin(mock_image_file(), sample_user, pin_data)
 
     update_data = PinUpdate(title="Updated Title")
     pin_model = await pin_svc.get_pin_by_id(created_pin.id)
@@ -139,8 +145,7 @@ async def test_delete_pin_success_and_forbidden(
     pin_svc: PinService, sample_user, another_user
 ):
     pin_data = PinCreate(title="To be deleted")
-    image_url = "https://example.com/image.jpg"
-    created_pin = await pin_svc.create_pin(sample_user, pin_data, image_url)
+    created_pin = await pin_svc.create_pin(mock_image_file(), sample_user, pin_data)
 
     pin_model = await pin_svc.get_pin_by_id(created_pin.id)
     with pytest.raises(HTTPException) as excinfo:
@@ -157,20 +162,16 @@ async def test_delete_pin_success_and_forbidden(
 @pytest.mark.asyncio
 async def test_get_related_pins_from_db(pin_svc: PinService, sample_user):
     pin1 = await pin_svc.create_pin(
-        sample_user,
-        PinCreate(title="Pin 1", tags=["cats", "funny"]),
-        "url1",
+        mock_image_file(), sample_user, PinCreate(title="Pin 1", tags=["cats", "funny"])
     )
     pin2 = await pin_svc.create_pin(
-        sample_user, PinCreate(title="Pin 2", tags=["cats", "cute"]), "url2"
+        mock_image_file(), sample_user, PinCreate(title="Pin 2", tags=["cats", "cute"])
     )
     pin3 = await pin_svc.create_pin(
-        sample_user,
-        PinCreate(title="Pin 3", tags=["dogs", "funny"]),
-        "url3",
+        mock_image_file(), sample_user, PinCreate(title="Pin 3", tags=["dogs", "funny"])
     )
     await pin_svc.create_pin(
-        sample_user, PinCreate(title="Pin 4", tags=["birds"]), "url4"
+        mock_image_file(), sample_user, PinCreate(title="Pin 4", tags=["birds"])
     )
 
     related = await pin_svc.get_related_pins(pin1.id)
@@ -182,8 +183,12 @@ async def test_get_related_pins_from_db(pin_svc: PinService, sample_user):
 
 @pytest.mark.asyncio
 async def test_get_pins_by_ids(pin_svc: PinService, sample_user):
-    pin1 = await pin_svc.create_pin(sample_user, PinCreate(title="Pin 1"), "url1")
-    pin2 = await pin_svc.create_pin(sample_user, PinCreate(title="Pin 2"), "url2")
+    pin1 = await pin_svc.create_pin(
+        mock_image_file(), sample_user, PinCreate(title="Pin 1")
+    )
+    pin2 = await pin_svc.create_pin(
+        mock_image_file(), sample_user, PinCreate(title="Pin 2")
+    )
 
     result = await pin_svc.get_pins_by_ids([str(pin1.id), str(pin2.id), "invalid-uuid"])
     assert len(result) == 2
@@ -195,7 +200,7 @@ async def test_get_pins_by_ids(pin_svc: PinService, sample_user):
 @pytest.mark.asyncio
 async def test_like_pin_success(pin_svc: PinService, sample_user):
     pin = await pin_svc.create_pin(
-        sample_user, PinCreate(title="Like Me"), "http://img.jpg"
+        mock_image_file(), sample_user, PinCreate(title="Like Me")
     )
     assert getattr(pin, "likes_count", 0) == 0
 
@@ -206,7 +211,7 @@ async def test_like_pin_success(pin_svc: PinService, sample_user):
 @pytest.mark.asyncio
 async def test_like_pin_duplicate_raises_conflict(pin_svc: PinService, sample_user):
     pin = await pin_svc.create_pin(
-        sample_user, PinCreate(title="Like Once"), "http://img.jpg"
+        mock_image_file(), sample_user, PinCreate(title="Like Once")
     )
     await pin_svc.like_pin(pin.id, sample_user.id)
 
@@ -218,7 +223,7 @@ async def test_like_pin_duplicate_raises_conflict(pin_svc: PinService, sample_us
 @pytest.mark.asyncio
 async def test_unlike_pin_success(pin_svc: PinService, sample_user):
     pin = await pin_svc.create_pin(
-        sample_user, PinCreate(title="Unlike Me"), "http://img.jpg"
+        mock_image_file(), sample_user, PinCreate(title="Unlike Me")
     )
     await pin_svc.like_pin(pin.id, sample_user.id)
 
@@ -231,7 +236,7 @@ async def test_unlike_pin_likes_count_does_not_go_below_zero(
     pin_svc: PinService, sample_user, another_user
 ):
     pin = await pin_svc.create_pin(
-        sample_user, PinCreate(title="Floor Test"), "http://img.jpg"
+        mock_image_file(), sample_user, PinCreate(title="Floor Test")
     )
     await pin_svc.like_pin(pin.id, sample_user.id)
     unliked = await pin_svc.unlike_pin(pin.id, sample_user.id)
@@ -241,13 +246,13 @@ async def test_unlike_pin_likes_count_does_not_go_below_zero(
 @pytest.mark.asyncio
 async def test_get_pins_search_by_title(pin_svc: PinService, sample_user):
     await pin_svc.create_pin(
-        sample_user, PinCreate(title="Sunset Beach"), "http://a.jpg"
+        mock_image_file(), sample_user, PinCreate(title="Sunset Beach")
     )
     await pin_svc.create_pin(
-        sample_user, PinCreate(title="Mountain Hike"), "http://b.jpg"
+        mock_image_file(), sample_user, PinCreate(title="Mountain Hike")
     )
     await pin_svc.create_pin(
-        sample_user, PinCreate(title="City Sunset View"), "http://c.jpg"
+        mock_image_file(), sample_user, PinCreate(title="City Sunset View")
     )
 
     results = await pin_svc.get_pins(search="sunset")
@@ -260,19 +265,15 @@ async def test_get_pins_search_by_title(pin_svc: PinService, sample_user):
 @pytest.mark.asyncio
 async def test_get_pins_filter_by_tag(pin_svc: PinService, sample_user):
     await pin_svc.create_pin(
-        sample_user,
-        PinCreate(title="Nature Pin", tags=["nature"]),
-        "http://n.jpg",
+        mock_image_file(), sample_user, PinCreate(title="Nature Pin", tags=["nature"])
     )
     await pin_svc.create_pin(
-        sample_user,
-        PinCreate(title="Food Pin", tags=["food"]),
-        "http://f.jpg",
+        mock_image_file(), sample_user, PinCreate(title="Food Pin", tags=["food"])
     )
     await pin_svc.create_pin(
+        mock_image_file(),
         sample_user,
         PinCreate(title="Nature Food Pin", tags=["nature", "food"]),
-        "http://nf.jpg",
     )
 
     results = await pin_svc.get_pins(tags=["nature"])
@@ -286,9 +287,7 @@ async def test_get_pins_filter_by_tag(pin_svc: PinService, sample_user):
 async def test_get_pins_order_by_created_at_newest(pin_svc: PinService, sample_user):
     for i in range(3):
         await pin_svc.create_pin(
-            sample_user,
-            PinCreate(title=f"Ordered Pin {i}"),
-            "http://img.jpg",
+            mock_image_file(), sample_user, PinCreate(title=f"Ordered Pin {i}")
         )
 
     results = await pin_svc.get_pins(created_at=CreatedAt.newest, limit=3)
@@ -307,10 +306,10 @@ async def test_get_pins_order_by_popularity_most_popular(
     pin_svc: PinService, sample_user, another_user
 ):
     low = await pin_svc.create_pin(
-        sample_user, PinCreate(title="Low Likes"), "http://low.jpg"
+        mock_image_file(), sample_user, PinCreate(title="Low Likes")
     )
     high = await pin_svc.create_pin(
-        sample_user, PinCreate(title="High Likes"), "http://high.jpg"
+        mock_image_file(), sample_user, PinCreate(title="High Likes")
     )
     await pin_svc.like_pin(high.id, sample_user.id)
     await pin_svc.like_pin(high.id, another_user.id)
@@ -325,10 +324,10 @@ async def test_get_pins_order_by_popularity_least_popular(
     pin_svc: PinService, sample_user, another_user
 ):
     zero = await pin_svc.create_pin(
-        sample_user, PinCreate(title="Zero Likes"), "http://z.jpg"
+        mock_image_file(), sample_user, PinCreate(title="Zero Likes")
     )
     popular = await pin_svc.create_pin(
-        sample_user, PinCreate(title="One Like"), "http://p.jpg"
+        mock_image_file(), sample_user, PinCreate(title="One Like")
     )
     await pin_svc.like_pin(popular.id, sample_user.id)
 
@@ -340,19 +339,13 @@ async def test_get_pins_order_by_popularity_least_popular(
 @pytest.mark.asyncio
 async def test_get_pins_search_and_tag_combined(pin_svc: PinService, sample_user):
     await pin_svc.create_pin(
-        sample_user,
-        PinCreate(title="Ocean Waves", tags=["water"]),
-        "http://ow.jpg",
+        mock_image_file(), sample_user, PinCreate(title="Ocean Waves", tags=["water"])
     )
     await pin_svc.create_pin(
-        sample_user,
-        PinCreate(title="Ocean Storm", tags=["storm"]),
-        "http://os.jpg",
+        mock_image_file(), sample_user, PinCreate(title="Ocean Storm", tags=["storm"])
     )
     await pin_svc.create_pin(
-        sample_user,
-        PinCreate(title="Lake Waves", tags=["water"]),
-        "http://lw.jpg",
+        mock_image_file(), sample_user, PinCreate(title="Lake Waves", tags=["water"])
     )
 
     results = await pin_svc.get_pins(search="Ocean", tags=["water"])

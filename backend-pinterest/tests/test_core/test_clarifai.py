@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from src.core.clarifai import ClarifaiService
+from src.core.infra.clarifai import ClarifaiService
 
 
 @pytest.fixture
@@ -14,7 +14,7 @@ def mock_clarifai_service(mocker):
 
 @pytest.mark.asyncio
 async def test_index_image_bytes(mocker):
-    mocker.patch("src.core.clarifai.httpx.AsyncClient")
+    mocker.patch("src.core.infra.clarifai.httpx.AsyncClient")
     service = ClarifaiService("test", "test", "test")
     result = await service.index_image_bytes("test", b"test")
     assert result is None
@@ -22,7 +22,7 @@ async def test_index_image_bytes(mocker):
 
 @pytest.mark.asyncio
 async def test_index_image_bytes_without_credentials(mocker):
-    mocker.patch("src.core.clarifai.httpx.AsyncClient")
+    mocker.patch("src.core.infra.clarifai.httpx.AsyncClient")
     service = ClarifaiService("", "", "")
     result = await service.index_image_bytes("test", b"test")
     assert result is None
@@ -30,7 +30,7 @@ async def test_index_image_bytes_without_credentials(mocker):
 
 @pytest.mark.asyncio
 async def test_delete_image(mocker):
-    mocker.patch("src.core.clarifai.httpx.AsyncClient")
+    mocker.patch("src.core.infra.clarifai.httpx.AsyncClient")
     service = ClarifaiService("test", "test", "test")
     result = await service.delete_image("test")
     assert result is None
@@ -38,7 +38,7 @@ async def test_delete_image(mocker):
 
 @pytest.mark.asyncio
 async def test_delete_image_without_credentials(mocker):
-    mocker.patch("src.core.clarifai.httpx.AsyncClient")
+    mocker.patch("src.core.infra.clarifai.httpx.AsyncClient")
     service = ClarifaiService("", "", "")
     result = await service.delete_image("test")
     assert result is None
@@ -46,7 +46,7 @@ async def test_delete_image_without_credentials(mocker):
 
 @pytest.mark.asyncio
 async def test_search_similar_images_by_id(mocker):
-    mocker.patch("src.core.clarifai.httpx.AsyncClient")
+    mocker.patch("src.core.infra.clarifai.httpx.AsyncClient")
     service = ClarifaiService("test", "test", "test")
     result = await service.search_similar_images_by_id("test")
     assert result == []
@@ -54,7 +54,7 @@ async def test_search_similar_images_by_id(mocker):
 
 @pytest.mark.asyncio
 async def test_search_similar_images_by_id_without_credentials(mocker):
-    mocker.patch("src.core.clarifai.httpx.AsyncClient")
+    mocker.patch("src.core.infra.clarifai.httpx.AsyncClient")
     service = ClarifaiService("", "", "")
     result = await service.search_similar_images_by_id("test")
     assert result == []

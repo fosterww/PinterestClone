@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.exception import NotFoundError, ForbiddenError
-from src.core.session import SessionService
+from src.core.security.session import SessionService
 from src.boards.models import BoardModel
 from src.users.models import UserModel
 from src.boards.schemas import BoardCreate, BoardUpdate, BoardResponse

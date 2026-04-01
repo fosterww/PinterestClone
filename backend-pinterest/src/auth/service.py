@@ -5,13 +5,13 @@ from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.security import (
+from src.core.security.security import (
     hash_password,
     verify_password,
     create_access_token,
     create_refresh_token,
 )
-from src.core.session import SessionService
+from src.core.security.session import SessionService
 from src.core.logger import logger
 from src.users.models import RefreshTokenModel, UserModel
 from src.users.schemas import UserCreate

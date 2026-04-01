@@ -4,10 +4,9 @@ from redis.asyncio import Redis
 
 from src.database import get_db
 from src.core.config import settings
-from src.core.session import SessionService
-from src.core.cache import CacheService
-from src.core.s3 import S3Service
-from src.core.clarifai import ClarifaiService
+from src.core.security.session import SessionService
+from src.core.infra.cache import CacheService
+from src.core.infra.s3 import S3Service
 from src.users.repository import UserRepository
 from src.auth.service import AuthService
 from src.pins.repository import PinRepository
@@ -60,12 +59,6 @@ async def get_s3_service() -> S3Service:
     return S3Service()
 
 
-async def get_clarifai_service() -> ClarifaiService:
-    return ClarifaiService(
-        settings.clarifai_api_key, settings.clarifai_app_id, settings.clarifai_user_id
-    )
-
-
 def get_auth_service(
     db: AsyncSession = Depends(get_db),
     session_service: SessionService = Depends(get_session_service),
@@ -80,8 +73,9 @@ def get_pin_service(
     cache: CacheService = Depends(get_cache_service),
     repo: PinRepository = Depends(get_pin_repository),
     tag_service: TagService = Depends(get_tag_service),
+    s3_service: S3Service = Depends(get_s3_service),
 ) -> PinService:
-    return PinService(db, cache, repo, tag_service)
+    return PinService(db, cache, repo, tag_service, s3_service)
 
 
 def get_board_service(

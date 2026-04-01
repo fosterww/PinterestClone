@@ -85,7 +85,7 @@ services:
       - .env
     volumes:
       - ./src:/app/src
-    command: celery -A src.core.celery worker --loglevel=info
+    command: celery -A src.core.infra.celery worker --loglevel=info
 
   celery-beat:
     build: .
@@ -97,7 +97,7 @@ services:
       - .env
     volumes:
       - ./src:/app/src
-    command: celery -A src.core.celery beat --loglevel=info
+    command: celery -A src.core.infra.celery beat --loglevel=info
 
   api:
     build: .

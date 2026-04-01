@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Request
 
-from src.core.limiter import limiter
-from src.core.auth import get_current_user
+from src.core.security.limiter import limiter
+from src.core.security.auth import get_current_user
 from src.users.models import UserModel
 from src.users.schemas import UserUpdate, UserResponse
 from src.core.dependencies import get_user_repository

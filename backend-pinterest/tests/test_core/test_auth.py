@@ -3,8 +3,8 @@ import jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException
 
-from src.core.auth import get_current_user
-from src.core.security import create_access_token
+from src.core.security.auth import get_current_user
+from src.core.security.security import create_access_token
 from src.core.config import settings
 from src.auth.service import AuthService
 from src.users.schemas import UserCreate

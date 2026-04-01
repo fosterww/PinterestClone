@@ -29,30 +29,25 @@ async def test_pin_crud_flow(client: AsyncClient, fake_image: bytes, mock_celery
     token = login_response.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
-    with patch(
-        "src.core.s3.S3Service.upload_image_to_s3", new_callable=AsyncMock
-    ) as mock_s3:
-        mock_s3.return_value = "http://fake-s3-url.com/image.jpg"
-
-        response = await client.post(
-            "/api/v2/pins/",
-            data={
-                "title": "My Test Pin",
-                "description": "Desc",
-                "link_url": "http://pinterest.com",
-            },
-            files={"image": ("test.jpg", io.BytesIO(fake_image), "image/jpeg")},
-            headers=headers,
-        )
-        assert response.status_code == 201
-        data = response.json()
-        assert data["title"] == "My Test Pin"
-        assert data["image_url"] == "http://fake-s3-url.com/image.jpg"
-        assert data["tags"] == []
-        pin_id = data["id"]
-        mock_index_task.assert_called_once()
-        args, _ = mock_index_task.call_args
-        assert args[0] == pin_id
+    response = await client.post(
+        "/api/v2/pins/",
+        data={
+            "title": "My Test Pin",
+            "description": "Desc",
+            "link_url": "http://pinterest.com",
+        },
+        files={"image": ("test.jpg", io.BytesIO(fake_image), "image/jpeg")},
+        headers=headers,
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["title"] == "My Test Pin"
+    assert data["image_url"] == "http://mock-s3-url.com/image.jpg"
+    assert data["tags"] == []
+    pin_id = data["id"]
+    mock_index_task.assert_called_once()
+    args, _ = mock_index_task.call_args
+    assert args[0] == pin_id
 
     response = await client.get("/api/v2/pins/")
     assert response.status_code == 200
@@ -96,23 +91,19 @@ async def test_pin_create_with_tags(client: AsyncClient, fake_image: bytes):
     token = login_response.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
-    with patch(
-        "src.core.s3.S3Service.upload_image_to_s3", new_callable=AsyncMock
-    ) as mock_s3:
-        mock_s3.return_value = "http://fake-s3-url.com/image.jpg"
+    # Unified with conftest.py's mock_s3_service
+    response = await client.post(
+        "/api/v2/pins/",
+        data={"title": "Tagged Pin", "tags": ["nature", "travel"]},
+        files={"image": ("test.jpg", io.BytesIO(fake_image), "image/jpeg")},
+        headers=headers,
+    )
 
-        response = await client.post(
-            "/api/v2/pins/",
-            data={"title": "Tagged Pin", "tags": ["nature", "travel"]},
-            files={"image": ("test.jpg", io.BytesIO(fake_image), "image/jpeg")},
-            headers=headers,
-        )
-
-        assert response.status_code == 201
-        data = response.json()
-        returned_tag_names = {t["name"] for t in data["tags"]}
-        assert "nature" in returned_tag_names
-        assert "travel" in returned_tag_names
+    assert response.status_code == 201
+    data = response.json()
+    returned_tag_names = {t["name"] for t in data["tags"]}
+    assert "nature" in returned_tag_names
+    assert "travel" in returned_tag_names
 
 
 @pytest.mark.asyncio
@@ -133,42 +124,39 @@ async def test_get_related_pins(client: AsyncClient, fake_image: bytes):
     token = login_response.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
-    with patch(
-        "src.core.s3.S3Service.upload_image_to_s3", new_callable=AsyncMock
-    ) as mock_s3:
-        mock_s3.return_value = "http://fake-s3.com/img.jpg"
-        p1 = await client.post(
-            "/api/v2/pins/",
-            data={"title": "Pin 1", "tags": ["art", "cool"]},
-            files={"image": ("test.jpg", io.BytesIO(fake_image), "image/jpeg")},
-            headers=headers,
-        )
-        p2 = await client.post(
-            "/api/v2/pins/",
-            data={"title": "Pin 2", "tags": ["art"]},
-            files={"image": ("test.jpg", io.BytesIO(fake_image), "image/jpeg")},
-            headers=headers,
-        )
-        p3 = await client.post(
-            "/api/v2/pins/",
-            data={"title": "Pin 3", "tags": ["cool"]},
-            files={"image": ("test.jpg", io.BytesIO(fake_image), "image/jpeg")},
-            headers=headers,
-        )
+    # Unified with conftest.py's mock_s3_service
+    p1 = await client.post(
+        "/api/v2/pins/",
+        data={"title": "Pin 1", "tags": ["art", "cool"]},
+        files={"image": ("test.jpg", io.BytesIO(fake_image), "image/jpeg")},
+        headers=headers,
+    )
+    p2 = await client.post(
+        "/api/v2/pins/",
+        data={"title": "Pin 2", "tags": ["art"]},
+        files={"image": ("test.jpg", io.BytesIO(fake_image), "image/jpeg")},
+        headers=headers,
+    )
+    p3 = await client.post(
+        "/api/v2/pins/",
+        data={"title": "Pin 3", "tags": ["cool"]},
+        files={"image": ("test.jpg", io.BytesIO(fake_image), "image/jpeg")},
+        headers=headers,
+    )
 
-        p1_id = p1.json()["id"]
-        p2_id = p2.json()["id"]
-        p3_id = p3.json()["id"]
+    p1_id = p1.json()["id"]
+    p2_id = p2.json()["id"]
+    p3_id = p3.json()["id"]
 
     with (
         patch(
-            "src.core.clarifai.ClarifaiService.search_similar_images_by_id",
+            "src.core.infra.clarifai.ClarifaiService.search_similar_images_by_id",
             new_callable=AsyncMock,
         ) as mock_clarifai,
         patch(
-            "src.core.cache.CacheService.get_pattern", new_callable=AsyncMock
+            "src.core.infra.cache.CacheService.get_pattern", new_callable=AsyncMock
         ) as mock_cache_get,
-        patch("src.core.cache.CacheService.set", new_callable=AsyncMock),
+        patch("src.core.infra.cache.CacheService.set", new_callable=AsyncMock),
     ):
         mock_clarifai.return_value = [p3_id]
         mock_cache_get.return_value = None
@@ -206,14 +194,13 @@ async def _create_pin(
     data: dict = {"title": title}
     if tags:
         data["tags"] = tags
-    with patch("src.core.s3.S3Service.upload_image_to_s3", new_callable=AsyncMock) as m:
-        m.return_value = "http://fake-s3.com/img.jpg"
-        response = await client.post(
-            "/api/v2/pins/",
-            data=data,
-            files={"image": ("test.jpg", io.BytesIO(fake_image), "image/jpeg")},
-            headers=headers,
-        )
+    # Unified with conftest.py's mock_s3_service
+    response = await client.post(
+        "/api/v2/pins/",
+        data=data,
+        files={"image": ("test.jpg", io.BytesIO(fake_image), "image/jpeg")},
+        headers=headers,
+    )
     assert response.status_code == 201, response.text
     return response.json()
 

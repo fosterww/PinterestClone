@@ -15,6 +15,19 @@ class PinBase(BaseModel):
     likes_count: int = 0
 
 
+class PinCommentCreate(BaseModel):
+    comment: str
+
+
+class PinCommentResponse(PinCommentCreate):
+    id: uuid.UUID
+    likes_count: int = 0
+    created_at: datetime
+    user: UserResponse
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class PinCreate(PinBase):
     tags: list[str] = []
 
@@ -33,6 +46,7 @@ class PinResponse(PinBase):
     image_url: str
     tags: list[TagResponse]
     created_at: datetime
+    comments: list[PinCommentResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
 

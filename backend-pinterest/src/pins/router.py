@@ -1,5 +1,4 @@
 import uuid
-import base64
 from typing import Annotated, Optional, List
 
 from fastapi import (
@@ -13,22 +12,28 @@ from fastapi import (
     Form,
     Request,
 )
-from src.core.limiter import limiter
-from src.core.s3 import S3Service
-from src.core.clarifai import ClarifaiService
+from src.core.security.limiter import limiter
+from src.core.infra.clarifai import ClarifaiService
 from src.core.dependencies import (
     get_pin_repository,
     get_pin_service,
-    get_s3_service,
-    get_clarifai_service,
 )
-from src.core.auth import get_current_user
+from src.core.infra.clarifai import get_clarifai_service
+from src.core.security.auth import get_current_user
 from src.users.models import UserModel
-from src.pins.schemas import PinCreate, PinUpdate, PinResponse, Pagination, FilterPins
+from src.pins.schemas import (
+    PinCreate,
+    PinUpdate,
+    PinResponse,
+    Pagination,
+    FilterPins,
+    PinCommentCreate,
+    PinCommentResponse,
+)
 
 from src.pins.repository import PinRepository
 from src.pins.service import PinService
-from src.pins.task import index_image_task, delete_image_task
+from src.pins.task import delete_image_task
 
 
 router = APIRouter()
@@ -38,7 +43,6 @@ router = APIRouter()
 @limiter.limit("5/minute")
 async def create_new_pin(
     request: Request,
-    s3_service: S3Service = Depends(get_s3_service),
     image: UploadFile = File(...),
     title: str = Form(...),
     description: Optional[str] = Form(None),
@@ -47,23 +51,8 @@ async def create_new_pin(
     current_user: UserModel = Depends(get_current_user),
     service: PinService = Depends(get_pin_service),
 ) -> PinResponse:
-    allowed = {"image/jpeg", "image/png", "image/webp", "image/gif"}
-    if image.content_type not in allowed:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported image type: {image.content_type}",
-        )
-
-    content = await image.read()
-    await image.seek(0)
-
-    image_url = await s3_service.upload_image_to_s3(image)
     data = PinCreate(title=title, description=description, link_url=link_url, tags=tags)
-    pin = await service.create_pin(current_user, data, image_url=image_url)
-
-    base64_image = base64.b64encode(content).decode("utf-8")
-    index_image_task.delay(str(pin.id), base64_image)
-    return pin
+    return await service.create_pin(image, current_user, data)
 
 
 @router.get("/")
@@ -74,7 +63,7 @@ async def list_pins(
     pagination: Pagination = Depends(),
     filter_pins: FilterPins = Depends(),
     repo: PinRepository = Depends(get_pin_repository),
-) -> list[PinResponse]:
+) -> List[PinResponse]:
     return await repo.get_pins(
         offset=pagination.offset,
         limit=pagination.limit,
@@ -159,6 +148,78 @@ async def remove_pin(
     delete_image_task.delay(str(pin_id))
 
 
+@router.get("/{pin_id}/comments")
+@limiter.limit("5/minute")
+async def get_comments(
+    request: Request,
+    pin_id: uuid.UUID,
+    service: PinService = Depends(get_pin_service),
+) -> List[PinCommentResponse]:
+    return await service.get_comments(pin_id)
+
+
+@router.post("/{pin_id}/comments")
+@limiter.limit("5/minute")
+async def add_comment(
+    request: Request,
+    pin_id: uuid.UUID,
+    data: PinCommentCreate,
+    current_user: UserModel = Depends(get_current_user),
+    service: PinService = Depends(get_pin_service),
+) -> PinCommentResponse:
+    return await service.add_comment(pin_id, current_user.id, data.comment)
+
+
+@router.post("/{pin_id}/comments/{comment_id}/like")
+@limiter.limit("5/minute")
+async def like_comment(
+    request: Request,
+    pin_id: uuid.UUID,
+    comment_id: uuid.UUID,
+    current_user: UserModel = Depends(get_current_user),
+    service: PinService = Depends(get_pin_service),
+) -> PinCommentResponse:
+    return await service.add_comment_like(pin_id, comment_id)
+
+
+@router.post("/{pin_id}/comments/{comment_id}/unlike")
+@limiter.limit("5/minute")
+async def unlike_comment(
+    request: Request,
+    pin_id: uuid.UUID,
+    comment_id: uuid.UUID,
+    current_user: UserModel = Depends(get_current_user),
+    service: PinService = Depends(get_pin_service),
+) -> PinCommentResponse:
+    return await service.delete_comment_like(pin_id, comment_id)
+
+
+@router.patch("/{pin_id}/comments/{comment_id}")
+@limiter.limit("5/minute")
+async def patch_comment(
+    request: Request,
+    comment_id: uuid.UUID,
+    data: PinCommentCreate,
+    current_user: UserModel = Depends(get_current_user),
+    service: PinService = Depends(get_pin_service),
+) -> PinCommentResponse:
+    return await service.update_comment(comment_id, current_user.id, data.comment)
+
+
+@router.delete(
+    "/{pin_id}/comments/{comment_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+@limiter.limit("5/minute")
+async def remove_comment(
+    request: Request,
+    pin_id: uuid.UUID,
+    comment_id: uuid.UUID,
+    current_user: UserModel = Depends(get_current_user),
+    service: PinService = Depends(get_pin_service),
+) -> None:
+    await service.delete_comment(comment_id, current_user)
+
+
 @router.get("/{pin_id}/related")
 @limiter.limit("5/minute")
 async def get_related_pins(
@@ -167,7 +228,7 @@ async def get_related_pins(
     clarifai_service: ClarifaiService = Depends(get_clarifai_service),
     service: PinService = Depends(get_pin_service),
     repo: PinRepository = Depends(get_pin_repository),
-) -> list[PinResponse]:
+) -> List[PinResponse]:
     similar_ids = await clarifai_service.search_similar_images_by_id(str(pin_id))
     db_related_pins = await service.get_related_pins(pin_id, limit=20)
     clarifai_pins = await repo.get_pins_by_ids(similar_ids)

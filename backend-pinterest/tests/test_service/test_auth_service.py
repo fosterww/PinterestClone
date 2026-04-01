@@ -4,7 +4,7 @@ from fastapi import HTTPException
 
 from src.auth.service import AuthService
 from src.users.schemas import UserCreate
-from src.core.security import verify_password
+from src.core.security.security import verify_password
 from src.users.repository import UserRepository
 from src.auth.repository import AuthRepository
 

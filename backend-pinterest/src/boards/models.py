@@ -44,6 +44,7 @@ class PinModel(Base):
     owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     title: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    thumbnail_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     image_url: Mapped[str] = mapped_column(String(255), nullable=False)
     link_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
@@ -61,6 +62,9 @@ class PinModel(Base):
     )
     tags: Mapped[list["TagModel"]] = relationship(
         "TagModel", secondary=pin_tag_association, back_populates="pins"
+    )
+    comments: Mapped[list["PinCommentModel"]] = relationship(
+        "PinCommentModel", back_populates="pin"
     )
 
 
@@ -113,3 +117,20 @@ class PinLikeModel(Base):
 
     pin: Mapped["PinModel"] = relationship("PinModel", back_populates="likes")
     user: Mapped["UserModel"] = relationship("UserModel", back_populates="likes")
+
+
+class PinCommentModel(Base):
+    __tablename__ = "comments"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    comment: Mapped[str] = mapped_column(String(500), nullable=False)
+    likes_count: Mapped[int] = mapped_column(server_default="0")
+    pin_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("pins.id"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        server_default=func.now(), onupdate=func.now()
+    )
+
+    pin: Mapped["PinModel"] = relationship("PinModel", back_populates="comments")
+    user: Mapped["UserModel"] = relationship("UserModel", back_populates="comments")
