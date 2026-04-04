@@ -1,5 +1,6 @@
 import base64
 import httpx
+from typing import List
 
 from tenacity import retry, stop_after_attempt, wait_exponential
 from src.core.logger import logger
@@ -46,17 +47,11 @@ class ClarifaiService:
         wait=wait_exponential(multiplier=1, min=4, max=10),
         reraise=True,
     )
-    async def search_similar_images_by_id(self, pin_id: str) -> list[str]:
-        url = f"{self.base_url}/searches"
+    async def search_similar_images_by_id(self, pin_id: str) -> List[str]:
+        url = f"{self.base_url}/annotations/searches"
         payload = {
             "searches": [
-                {
-                    "query": {
-                        "ranks": [
-                            {"annotation": {"data": {"image": {"id": str(pin_id)}}}}
-                        ]
-                    }
-                }
+                {"query": {"ranks": [{"annotation": {"input_id": str(pin_id)}}]}}
             ]
         }
 

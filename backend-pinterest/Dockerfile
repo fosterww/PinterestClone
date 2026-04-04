@@ -8,6 +8,8 @@ RUN uv sync --frozen --no-dev --no-install-project
 FROM python:3.12-slim AS runtime
 WORKDIR /app
 RUN addgroup --system appgroup && adduser --system --group appuser
+RUN mkdir -p /app/cache && chown -R appuser:appgroup /app/cache
+ENV HF_HOME=/app/cache
 COPY --from=builder --chown=appuser:appgroup /app/.venv /app/.venv
 COPY --chown=appuser:appgroup src /app/src
 COPY --chown=appuser:appgroup alembic.ini /app/alembic.ini

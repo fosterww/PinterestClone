@@ -22,7 +22,7 @@ class CacheService:
         try:
             keys = await self.redis.keys(pattern)
             if not keys:
-                raise Exception()
+                return None
             values = await self.redis.mget(keys)
             return values
         except RedisError as e:

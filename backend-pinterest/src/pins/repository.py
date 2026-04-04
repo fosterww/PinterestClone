@@ -1,6 +1,6 @@
 import uuid
 from typing import List
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -21,7 +21,6 @@ from src.pins.schemas import (
     Popularity,
     PinCreate,
 )
-from sqlalchemy import func
 
 
 class PinRepository:
@@ -46,10 +45,7 @@ class PinRepository:
             result = await self.db.execute(
                 select(PinModel)
                 .where(PinModel.id == pin.id)
-                .options(
-                    selectinload(PinModel.tags),
-                    selectinload(PinModel.comments).selectinload(PinCommentModel.user),
-                )
+                .options(selectinload(PinModel.tags))
             )
             return result.scalar_one()
         except SQLAlchemyError:
@@ -67,10 +63,7 @@ class PinRepository:
         popularity: Popularity | None = None,
     ) -> List[PinModel]:
         try:
-            query = select(PinModel).options(
-                selectinload(PinModel.tags),
-                selectinload(PinModel.comments).selectinload(PinCommentModel.user),
-            )
+            query = select(PinModel).options(selectinload(PinModel.tags))
 
             if search:
                 query = query.where(PinModel.title.icontains(search))
@@ -99,10 +92,7 @@ class PinRepository:
             result = await self.db.execute(
                 select(PinModel)
                 .where(PinModel.id == pin_id)
-                .options(
-                    selectinload(PinModel.tags),
-                    selectinload(PinModel.comments).selectinload(PinCommentModel.user),
-                )
+                .options(selectinload(PinModel.tags))
             )
             return result.scalar_one_or_none()
         except SQLAlchemyError:
@@ -122,10 +112,7 @@ class PinRepository:
             result = await self.db.execute(
                 select(PinModel)
                 .where(PinModel.id.in_(uuids))
-                .options(
-                    selectinload(PinModel.tags),
-                    selectinload(PinModel.comments).selectinload(PinCommentModel.user),
-                )
+                .options(selectinload(PinModel.tags))
             )
             return result.scalars().all()
         except SQLAlchemyError:
@@ -138,10 +125,7 @@ class PinRepository:
                 select(PinModel)
                 .join(UserModel)
                 .where(UserModel.username == username)
-                .options(
-                    selectinload(PinModel.tags),
-                    selectinload(PinModel.comments).selectinload(PinCommentModel.user),
-                )
+                .options(selectinload(PinModel.tags))
                 .order_by(PinModel.created_at.desc())
             )
             return result.scalars().all()
@@ -159,12 +143,7 @@ class PinRepository:
                 .where(PinLikeModel.user_id == user_id)
                 .options(
                     selectinload(PinLikeModel.user),
-                    selectinload(PinLikeModel.pin).options(
-                        selectinload(PinModel.tags),
-                        selectinload(PinModel.comments).selectinload(
-                            PinCommentModel.user
-                        ),
-                    ),
+                    selectinload(PinLikeModel.pin).options(selectinload(PinModel.tags)),
                 )
             )
             return result.scalar_one_or_none()
@@ -183,12 +162,7 @@ class PinRepository:
                 .where(PinLikeModel.user_id == user_id)
                 .options(
                     selectinload(PinLikeModel.user),
-                    selectinload(PinLikeModel.pin).options(
-                        selectinload(PinModel.tags),
-                        selectinload(PinModel.comments).selectinload(
-                            PinCommentModel.user
-                        ),
-                    ),
+                    selectinload(PinLikeModel.pin).options(selectinload(PinModel.tags)),
                 )
             )
             return result.scalar_one()
@@ -216,10 +190,7 @@ class PinRepository:
             result = await self.db.execute(
                 select(PinModel)
                 .where(PinModel.id == pin.id)
-                .options(
-                    selectinload(PinModel.tags),
-                    selectinload(PinModel.comments).selectinload(PinCommentModel.user),
-                )
+                .options(selectinload(PinModel.tags))
             )
             return result.scalar_one()
         except IntegrityError:
@@ -244,12 +215,26 @@ class PinRepository:
         try:
             result = await self.db.execute(
                 select(PinCommentModel)
-                .where(PinCommentModel.pin_id == pin_id)
+                .where(
+                    PinCommentModel.pin_id == pin_id, PinCommentModel.parent_id is None
+                )
                 .options(selectinload(PinCommentModel.user))
             )
             return result.scalars().all()
         except SQLAlchemyError:
             logger.error(f"Database error while fetching comments: {pin_id}")
+            raise AppError()
+
+    async def get_all_comments_flat(self, pin_id: uuid.UUID) -> List[PinCommentModel]:
+        try:
+            result = await self.db.execute(
+                select(PinCommentModel)
+                .where(PinCommentModel.pin_id == pin_id)
+                .options(selectinload(PinCommentModel.user))
+            )
+            return result.scalars().all()
+        except SQLAlchemyError:
+            logger.error(f"Database error while fetching all comments flat: {pin_id}")
             raise AppError()
 
     async def get_comment_by_id(self, comment_id: uuid.UUID) -> PinCommentModel | None:
@@ -265,16 +250,33 @@ class PinRepository:
             raise AppError()
 
     async def add_comment(
-        self, pin_id: uuid.UUID, user_id: uuid.UUID, text: str
+        self,
+        pin_id: uuid.UUID,
+        user_id: uuid.UUID,
+        text: str,
+        parent_id: uuid.UUID | None = None,
     ) -> PinCommentModel:
         try:
-            comment = PinCommentModel(pin_id=pin_id, user_id=user_id, comment=text)
+            data = {
+                "pin_id": pin_id,
+                "user_id": user_id,
+                "comment": text,
+            }
+            if parent_id:
+                data["parent_id"] = parent_id
+            comment = PinCommentModel(**data)
             self.db.add(comment)
             await self.db.flush()
             result = await self.db.execute(
                 select(PinCommentModel)
                 .where(PinCommentModel.id == comment.id)
-                .options(selectinload(PinCommentModel.user))
+                .options(
+                    selectinload(PinCommentModel.user),
+                    selectinload(PinCommentModel.replies).options(
+                        selectinload(PinCommentModel.user),
+                        selectinload(PinCommentModel.replies),
+                    ),
+                )
             )
             return result.scalar_one()
         except IntegrityError:
@@ -313,7 +315,13 @@ class PinRepository:
             result = await self.db.execute(
                 select(PinCommentModel)
                 .where(PinCommentModel.id == comment.id)
-                .options(selectinload(PinCommentModel.user))
+                .options(
+                    selectinload(PinCommentModel.user),
+                    selectinload(PinCommentModel.replies).options(
+                        selectinload(PinCommentModel.user),
+                        selectinload(PinCommentModel.replies),
+                    ),
+                )
             )
             return result.scalar_one()
         except IntegrityError:
@@ -336,7 +344,13 @@ class PinRepository:
             result = await self.db.execute(
                 select(PinCommentModel)
                 .where(PinCommentModel.id == comment.id)
-                .options(selectinload(PinCommentModel.user))
+                .options(
+                    selectinload(PinCommentModel.user),
+                    selectinload(PinCommentModel.replies).options(
+                        selectinload(PinCommentModel.user),
+                        selectinload(PinCommentModel.replies),
+                    ),
+                )
             )
             return result.scalar_one()
         except SQLAlchemyError:
@@ -353,7 +367,13 @@ class PinRepository:
             result = await self.db.execute(
                 select(PinCommentModel)
                 .where(PinCommentModel.id == pin_comment.id)
-                .options(selectinload(PinCommentModel.user))
+                .options(
+                    selectinload(PinCommentModel.user),
+                    selectinload(PinCommentModel.replies).options(
+                        selectinload(PinCommentModel.user),
+                        selectinload(PinCommentModel.replies),
+                    ),
+                )
             )
             return result.scalar_one()
         except IntegrityError:
@@ -388,10 +408,7 @@ class PinRepository:
                     func.count(pin_tag_association.c.tag_id).desc(),
                     PinModel.created_at.desc(),
                 )
-                .options(
-                    selectinload(PinModel.tags),
-                    selectinload(PinModel.comments).selectinload(PinCommentModel.user),
-                )
+                .options(selectinload(PinModel.tags))
                 .limit(limit)
             )
             result = await self.db.execute(query)

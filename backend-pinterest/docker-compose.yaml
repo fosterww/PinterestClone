@@ -85,6 +85,7 @@ services:
       - .env
     volumes:
       - ./src:/app/src
+      - cache:/app/cache
     command: celery -A src.core.infra.celery worker --loglevel=info
 
   celery-beat:
@@ -117,9 +118,11 @@ services:
       - "8000:8000"
     volumes:
       - ./src:/app/src
+      - cache:/app/cache
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
 
 volumes:
   postgres_data:
   minio_data:
   redis_data:
+  cache:

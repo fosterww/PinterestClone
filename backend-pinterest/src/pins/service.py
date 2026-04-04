@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.logger import logger
 from src.core.infra.cache import CacheService
 from src.core.infra.s3 import S3Service
+from src.core.infra.comment_filter import CommentFilter
 from src.core.exception import (
     ConflictError,
     NotFoundError,
@@ -20,10 +21,17 @@ from src.core.exception import (
 
 from src.boards.models import PinModel, PinCommentModel
 from src.users.models import UserModel
-from src.pins.schemas import PinCreate, PinUpdate
+from src.pins.schemas import (
+    PinCommentResponse,
+    PinCreate,
+    PinUpdate,
+    CreatedAt,
+    Popularity,
+    PinResponse,
+    PinListResponse,
+)
 from src.tags.service import TagService
 from src.pins.repository import PinRepository
-from src.pins.schemas import CreatedAt, Popularity
 from src.pins.task import index_image_task
 
 
@@ -35,27 +43,62 @@ class PinService:
         repo: PinRepository,
         tag_service: TagService,
         s3_service: S3Service,
+        comment_filter: CommentFilter,
     ) -> None:
         self.db = db
         self.cache = cache
         self.repo = repo
         self.tag_service = tag_service
         self.s3_service = s3_service
+        self.comment_filter = comment_filter
 
-    async def _get_from_cache(self, pin_id: uuid.UUID):
+    def _build_comment_tree(self, comments: List[PinCommentModel]):
+        id_to_resp = {
+            c.id: PinCommentResponse(
+                id=c.id,
+                comment=c.comment,
+                parent_id=c.parent_id,
+                likes_count=c.likes_count,
+                created_at=c.created_at,
+                user=c.user,
+                replies=[],
+            )
+            for c in comments
+        }
+
+        root_comments = []
+        for c in comments:
+            resp = id_to_resp[c.id]
+            if c.parent_id is None:
+                root_comments.append(resp)
+            else:
+                parent = id_to_resp.get(c.parent_id)
+                if parent is not None:
+                    parent.replies.append(resp)
+
+        root_comments.sort(key=lambda x: x.created_at, reverse=True)
+        return root_comments
+
+    async def _get_from_cache(self, pin_id: uuid.UUID) -> List[PinListResponse] | None:
         try:
             data = await self.cache.get_pattern(f"related_pins:{pin_id}:*")
             if data:
-                return [PinModel.model_validate_json(p) for p in data if p]
+                return [
+                    PinListResponse.model_validate_json(item)
+                    for item in data
+                    if item is not None
+                ]
         except Exception as e:
             logger.warning(f"Cache read error: {e}")
             return None
 
-    async def _set_to_cache(self, pin_id: uuid.UUID, pins: list[PinModel]):
+    async def _set_to_cache(self, pin_id: uuid.UUID, pins: list[PinModel]) -> None:
         try:
             for i, pin in enumerate(pins):
-                pin_json = pin.model_dump_json()
-                await self.cache.set(f"related_pins:{pin_id}:{i}", pin_json, 600)
+                pin_json = PinListResponse.model_validate(pin)
+                await self.cache.set(
+                    f"related_pins:{pin_id}:{i}", pin_json.model_dump_json(), 600
+                )
         except Exception as e:
             logger.error(f"Cache write error: {e}")
 
@@ -182,21 +225,49 @@ class PinService:
         pin = await self.repo.get_pin_by_id(pin_id)
         if not pin:
             raise NotFoundError("Pin not found")
-        return await self.repo.get_comments(pin_id)
+        comments = await self.repo.get_all_comments_flat(pin_id)
+        return self._build_comment_tree(comments)
 
     async def get_comment_by_id(self, comment_id: uuid.UUID) -> PinCommentModel:
         comment = await self.repo.get_comment_by_id(comment_id)
         if not comment:
             raise NotFoundError("Comment not found")
-        return comment
+
+        comments = await self.repo.get_all_comments_flat(comment.pin_id)
+        tree = self._build_comment_tree(comments)
+
+        def find_in_tree(nodes):
+            for node in nodes:
+                if node.id == comment_id:
+                    return node
+                found = find_in_tree(node.replies)
+                if found:
+                    return found
+            return None
+
+        found_comment = find_in_tree(tree)
+        return found_comment or comment
 
     async def add_comment(
-        self, pin_id: uuid.UUID, user_id: uuid.UUID, text: str
+        self,
+        pin_id: uuid.UUID,
+        parent_id: uuid.UUID | None,
+        user_id: uuid.UUID,
+        text: str,
     ) -> PinCommentModel:
         pin = await self.repo.get_pin_by_id(pin_id)
         if not pin:
             raise NotFoundError("Pin not found")
-        return await self.repo.add_comment(pin_id, user_id, text)
+        if parent_id:
+            comment = await self.repo.get_comment_by_id(parent_id)
+            if not comment:
+                raise NotFoundError("Comment not found")
+        if not self.comment_filter.filter_comment_text(text):
+            raise BadRequestError("Comment is toxic")
+        new_comment = await self.repo.add_comment(
+            pin_id=pin_id, user_id=user_id, text=text, parent_id=parent_id
+        )
+        return new_comment
 
     async def add_comment_like(
         self, pin_id: uuid.UUID, comment_id: uuid.UUID, user_id: uuid.UUID
@@ -212,7 +283,8 @@ class PinService:
         if existing_like:
             raise ConflictError("Comment already liked")
 
-        return await self.repo.add_comment_like(comment, user_id)
+        updated_comment = await self.repo.add_comment_like(comment, user_id)
+        return updated_comment
 
     async def delete_comment_like(
         self, pin_id: uuid.UUID, comment_id: uuid.UUID, user_id: uuid.UUID
@@ -228,7 +300,8 @@ class PinService:
         if not like:
             raise NotFoundError("Comment like not found")
 
-        return await self.repo.delete_comment_like(comment, like)
+        updated_comment = await self.repo.delete_comment_like(comment, like)
+        return updated_comment
 
     async def update_comment(
         self, comment_id: uuid.UUID, user_id: uuid.UUID, text: str
@@ -238,14 +311,32 @@ class PinService:
             raise NotFoundError("Comment not found")
         if comment.user_id != user_id:
             raise ForbiddenError("Not the comment owner")
-        return await self.repo.update_comment(comment, text)
+        updated_comment = await self.repo.update_comment(comment, text)
+        return updated_comment
 
     async def delete_comment(
-        self, comment_id: uuid.UUID, current_user: UserModel
+        self, pin_id: uuid.UUID, comment_id: uuid.UUID, current_user: UserModel
     ) -> None:
+        pin = await self.repo.get_pin_by_id(pin_id)
+        if not pin:
+            raise NotFoundError("Pin not found")
+        await self.repo.get_all_comments_flat(pin_id)
         comment = await self.repo.get_comment_by_id(comment_id)
         if not comment:
             raise NotFoundError("Comment not found")
         if comment.user_id != current_user.id:
             raise ForbiddenError("Not the comment owner")
+        if comment.pin_id != pin.id:
+            raise NotFoundError("Comment not found")
         await self.repo.delete_comment(comment)
+
+    async def get_pin_detail(self, pin_id: uuid.UUID) -> PinResponse:
+        pin = await self.repo.get_pin_by_id(pin_id)
+        if pin is None:
+            raise NotFoundError("Pin not found")
+
+        all_comments = await self.repo.get_all_comments_flat(pin_id)
+        comment_tree = self._build_comment_tree(all_comments)
+
+        pin_list = PinListResponse.model_validate(pin)
+        return PinResponse(**pin_list.model_dump(), comments=comment_tree)

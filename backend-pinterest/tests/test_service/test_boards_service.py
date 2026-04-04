@@ -18,12 +18,10 @@ from src.boards.schemas import BoardCreate, BoardUpdate
 
 from src.auth.service import AuthService
 from src.pins.service import PinService
-from src.pins.repository import PinRepository
 from src.boards.service import BoardService
 from src.boards.repository import BoardRepository
 from src.users.repository import UserRepository
 from src.auth.repository import AuthRepository
-from src.tags.service import TagService
 
 
 def mock_image_file():
@@ -40,15 +38,6 @@ def auth_svc(db_session: AsyncSession, mock_session_service):
     user_repo = UserRepository(db_session)
     auth_repo = AuthRepository(db_session)
     return AuthService(db_session, mock_session_service, user_repo, auth_repo)
-
-
-@pytest.fixture
-def pin_svc(db_session: AsyncSession, mock_cache_service, mock_s3_service):
-    repo = PinRepository(db_session)
-    tag_service = TagService(db_session)
-    return PinService(
-        db_session, mock_cache_service, repo, tag_service, mock_s3_service
-    )
 
 
 @pytest.fixture

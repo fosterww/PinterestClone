@@ -4,7 +4,6 @@ from typing import Annotated, Optional, List
 from fastapi import (
     APIRouter,
     Depends,
-    HTTPException,
     Query,
     status,
     UploadFile,
@@ -25,6 +24,7 @@ from src.pins.schemas import (
     PinCreate,
     PinUpdate,
     PinResponse,
+    PinListResponse,
     Pagination,
     FilterPins,
     PinCommentCreate,
@@ -50,7 +50,7 @@ async def create_new_pin(
     tags: Annotated[list[str], Form()] = [],
     current_user: UserModel = Depends(get_current_user),
     service: PinService = Depends(get_pin_service),
-) -> PinResponse:
+) -> PinListResponse:
     data = PinCreate(title=title, description=description, link_url=link_url, tags=tags)
     return await service.create_pin(image, current_user, data)
 
@@ -63,7 +63,7 @@ async def list_pins(
     pagination: Pagination = Depends(),
     filter_pins: FilterPins = Depends(),
     repo: PinRepository = Depends(get_pin_repository),
-) -> List[PinResponse]:
+) -> List[PinListResponse]:
     return await repo.get_pins(
         offset=pagination.offset,
         limit=pagination.limit,
@@ -79,12 +79,9 @@ async def list_pins(
 async def read_pin(
     request: Request,
     pin_id: uuid.UUID,
-    repo: PinRepository = Depends(get_pin_repository),
+    service: PinService = Depends(get_pin_service),
 ) -> PinResponse:
-    pin = await repo.get_pin_by_id(pin_id)
-    if pin is None:
-        raise HTTPException(status_code=404, detail="Pin not found")
-    return PinResponse.model_validate(pin)
+    return await service.get_pin_detail(pin_id)
 
 
 @router.get("/user/{username}")
@@ -93,7 +90,7 @@ async def read_user_pins(
     request: Request,
     username: str,
     repo: PinRepository = Depends(get_pin_repository),
-) -> List[PinResponse]:
+) -> List[PinListResponse]:
     return await repo.get_user_pins(username)
 
 
@@ -104,7 +101,7 @@ async def like_pin_handler(
     pin_id: uuid.UUID,
     current_user: UserModel = Depends(get_current_user),
     service: PinService = Depends(get_pin_service),
-) -> PinResponse:
+) -> PinListResponse:
     return await service.like_pin(pin_id, current_user.id)
 
 
@@ -115,7 +112,7 @@ async def unlike_pin_handler(
     pin_id: uuid.UUID,
     current_user: UserModel = Depends(get_current_user),
     service: PinService = Depends(get_pin_service),
-) -> PinResponse:
+) -> PinListResponse:
     return await service.unlike_pin(pin_id, current_user.id)
 
 
@@ -128,7 +125,7 @@ async def patch_pin(
     current_user: UserModel = Depends(get_current_user),
     service: PinService = Depends(get_pin_service),
     repo: PinRepository = Depends(get_pin_repository),
-) -> PinResponse:
+) -> PinListResponse:
     pin = await repo.get_pin_by_id(pin_id)
     return await service.update_pin(pin, data, current_user)
 
@@ -167,7 +164,9 @@ async def add_comment(
     current_user: UserModel = Depends(get_current_user),
     service: PinService = Depends(get_pin_service),
 ) -> PinCommentResponse:
-    return await service.add_comment(pin_id, current_user.id, data.comment)
+    return await service.add_comment(
+        pin_id, data.parent_id, current_user.id, data.comment
+    )
 
 
 @router.post("/{pin_id}/comments/{comment_id}/like")
@@ -199,11 +198,11 @@ async def unlike_comment(
 async def patch_comment(
     request: Request,
     comment_id: uuid.UUID,
-    data: PinCommentCreate,
+    text: str = Form(...),
     current_user: UserModel = Depends(get_current_user),
     service: PinService = Depends(get_pin_service),
 ) -> PinCommentResponse:
-    return await service.update_comment(comment_id, current_user.id, data.comment)
+    return await service.update_comment(comment_id, current_user.id, text)
 
 
 @router.delete(
@@ -217,7 +216,7 @@ async def remove_comment(
     current_user: UserModel = Depends(get_current_user),
     service: PinService = Depends(get_pin_service),
 ) -> None:
-    await service.delete_comment(comment_id, current_user)
+    await service.delete_comment(pin_id, comment_id, current_user)
 
 
 @router.get("/{pin_id}/related")
@@ -228,7 +227,7 @@ async def get_related_pins(
     clarifai_service: ClarifaiService = Depends(get_clarifai_service),
     service: PinService = Depends(get_pin_service),
     repo: PinRepository = Depends(get_pin_repository),
-) -> List[PinResponse]:
+) -> List[PinListResponse]:
     similar_ids = await clarifai_service.search_similar_images_by_id(str(pin_id))
     db_related_pins = await service.get_related_pins(pin_id, limit=20)
     clarifai_pins = await repo.get_pins_by_ids(similar_ids)

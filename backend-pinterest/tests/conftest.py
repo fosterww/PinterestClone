@@ -15,7 +15,15 @@ from sqlalchemy.ext.asyncio import (
 from src.database import Base, get_db
 from src.main import app
 from src.core.security.limiter import limiter
-from src.core.dependencies import get_session_service, get_s3_service
+from src.core.dependencies import (
+    get_session_service,
+    get_s3_service,
+    get_comment_filter,
+)
+from src.pins.repository import PinRepository
+from src.pins.service import PinService
+from src.tags.service import TagService
+from src.core.infra.comment_filter import CommentFilter
 
 limiter.enabled = False
 
@@ -116,9 +124,13 @@ async def client(
     def override_get_s3_service():
         return mock_s3_service
 
+    def override_get_comment_filter():
+        return CommentFilter()
+
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_session_service] = override_get_session_service
     app.dependency_overrides[get_s3_service] = override_get_s3_service
+    app.dependency_overrides[get_comment_filter] = override_get_comment_filter
 
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
@@ -137,6 +149,11 @@ def mock_celery_tasks():
         yield mock_index, mock_delete
 
 
+@pytest.fixture
+def comment_filter():
+    return CommentFilter()
+
+
 @pytest.fixture(autouse=True)
 def mock_pil_image_open():
     from unittest.mock import MagicMock
@@ -148,3 +165,19 @@ def mock_pil_image_open():
 
     with patch("src.pins.service.Image.open", return_value=mock_img):
         yield
+
+
+@pytest.fixture
+def pin_svc(
+    db_session: AsyncSession, mock_cache_service, mock_s3_service, comment_filter
+):
+    repo = PinRepository(db_session)
+    tag_service = TagService(db_session)
+    return PinService(
+        db_session,
+        mock_cache_service,
+        repo,
+        tag_service,
+        mock_s3_service,
+        comment_filter,
+    )

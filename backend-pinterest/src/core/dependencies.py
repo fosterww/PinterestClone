@@ -7,6 +7,7 @@ from src.core.config import settings
 from src.core.security.session import SessionService
 from src.core.infra.cache import CacheService
 from src.core.infra.s3 import S3Service
+from src.core.infra.comment_filter import CommentFilter
 from src.users.repository import UserRepository
 from src.auth.service import AuthService
 from src.pins.repository import PinRepository
@@ -29,12 +30,16 @@ def get_auth_repository(db: AsyncSession = Depends(get_db)) -> AuthRepository:
     return AuthRepository(db)
 
 
+def get_user_repository(db: AsyncSession = Depends(get_db)) -> UserRepository:
+    return UserRepository(db)
+
+
 def get_tag_service(db: AsyncSession = Depends(get_db)) -> TagService:
     return TagService(db)
 
 
-def get_user_repository(db: AsyncSession = Depends(get_db)) -> UserRepository:
-    return UserRepository(db)
+def get_comment_filter() -> CommentFilter:
+    return CommentFilter()
 
 
 async def get_session_service() -> SessionService:
@@ -74,8 +79,9 @@ def get_pin_service(
     repo: PinRepository = Depends(get_pin_repository),
     tag_service: TagService = Depends(get_tag_service),
     s3_service: S3Service = Depends(get_s3_service),
+    comment_filter: CommentFilter = Depends(get_comment_filter),
 ) -> PinService:
-    return PinService(db, cache, repo, tag_service, s3_service)
+    return PinService(db, cache, repo, tag_service, s3_service, comment_filter)
 
 
 def get_board_service(

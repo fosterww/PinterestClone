@@ -64,7 +64,9 @@ class PinModel(Base):
         "TagModel", secondary=pin_tag_association, back_populates="pins"
     )
     comments: Mapped[list["PinCommentModel"]] = relationship(
-        "PinCommentModel", back_populates="pin"
+        "PinCommentModel",
+        primaryjoin="and_(PinModel.id == PinCommentModel.pin_id, PinCommentModel.parent_id == None)",
+        viewonly=True,
     )
 
 
@@ -127,6 +129,9 @@ class PinCommentModel(Base):
     likes_count: Mapped[int] = mapped_column(server_default="0")
     pin_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("pins.id"), nullable=False)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("comments.id", ondelete="CASCADE"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         server_default=func.now(), onupdate=func.now()
@@ -134,8 +139,22 @@ class PinCommentModel(Base):
 
     pin: Mapped["PinModel"] = relationship("PinModel", back_populates="comments")
     user: Mapped["UserModel"] = relationship("UserModel", back_populates="comments")
+    replies: Mapped[list["PinCommentModel"]] = relationship(
+        "PinCommentModel",
+        back_populates="parent",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    parent: Mapped[PinCommentModel | None] = relationship(
+        "PinCommentModel",
+        back_populates="replies",
+        remote_side=[id],
+    )
     likes: Mapped[list["PinCommentLikeModel"]] = relationship(
-        "PinCommentLikeModel", back_populates="comment_obj"
+        "PinCommentLikeModel",
+        back_populates="comment_obj",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
 
@@ -144,7 +163,7 @@ class PinCommentLikeModel(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     comment_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("comments.id"), nullable=False
+        ForeignKey("comments.id", ondelete="CASCADE"), nullable=False
     )
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())

@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from src.tags.schemas import TagResponse
 from src.users.schemas import UserResponse
@@ -17,6 +17,14 @@ class PinBase(BaseModel):
 
 class PinCommentCreate(BaseModel):
     comment: str
+    parent_id: uuid.UUID | None = None
+
+    @field_validator("parent_id", mode="before")
+    @classmethod
+    def empty_string_to_none(cls, v):
+        if v == "":
+            return None
+        return v
 
 
 class PinCommentResponse(PinCommentCreate):
@@ -24,6 +32,7 @@ class PinCommentResponse(PinCommentCreate):
     likes_count: int = 0
     created_at: datetime
     user: UserResponse
+    replies: list["PinCommentResponse"] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -38,6 +47,16 @@ class PinUpdate(BaseModel):
     link_url: str | None = None
     image_url: str | None = None
     tags: list[str] = []
+
+
+class PinListResponse(PinBase):
+    id: uuid.UUID
+    owner_id: uuid.UUID
+    image_url: str
+    tags: list[TagResponse]
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PinResponse(PinBase):
