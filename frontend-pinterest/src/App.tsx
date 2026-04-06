@@ -6,6 +6,7 @@ import { useAuth } from './context/AuthContext'
 import { LoginForm } from './components/LoginForm'
 import { CreatePinModal } from './components/CreatePinModal'
 import { SearchFilters } from './components/SearchFilters'
+import { PinDetailModal } from './components/PinDetailModal'
 import type { PinFilters } from './types/api'
 
 function SearchIcon() {
@@ -22,6 +23,7 @@ function App() {
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [filters, setFilters] = useState<PinFilters>({});
+  const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
 
   const { data: pins, isLoading, isError } = useQuery({
     queryKey: ["pins", filters],
@@ -33,7 +35,6 @@ function App() {
   const createMutation = useMutation({
     mutationFn: createPin,
     onSuccess: () => {
-      // Throw away cached pins → PinGrid will auto-refresh with the new pin
       queryClient.invalidateQueries({ queryKey: ["pins"] });
       setShowCreate(false);
     },
@@ -82,15 +83,31 @@ function App() {
         </button>
       </header>
 
-      {isError ? (
-        <div className="empty-state">
-          <div style={{ fontSize: 48 }}>⚠️</div>
-          <h2>Couldn't load pins</h2>
-          <p>Check that your backend is running at port 8000.</p>
-        </div>
-      ) : (
-        <PinGrid pins={pins ?? []} isLoading={isLoading} />
-      )}
+      <div className="app-container">
+        <main className="app-main">
+          {isError ? (
+            <div className="empty-state">
+              <div style={{ fontSize: 48 }}>⚠️</div>
+              <h2>Couldn't load pins</h2>
+              <p>Check that your backend is running at port 8000.</p>
+            </div>
+          ) : (
+            <PinGrid
+              pins={pins ?? []}
+              isLoading={isLoading}
+              onPinClick={(p) => setSelectedPinId(p.id)}
+            />
+          )}
+        </main>
+
+        {selectedPinId && (
+          <PinDetailModal
+            pinId={selectedPinId}
+            onClose={() => setSelectedPinId(null)}
+            onPinSelect={(id: string) => setSelectedPinId(id)}
+          />
+        )}
+      </div>
 
       <CreatePinModal
         isOpen={showCreate}

@@ -1,13 +1,15 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import { jwtDecode } from "jwt-decode";
-import { login, logout, register } from "../api/auth";
+import { login, logout, register, loginWithGoogle, refreshToken } from "../api/auth";
 
 interface AuthContextType {
   isAuthenticated: boolean;
   login: typeof login;
+  loginWithGoogle: typeof loginWithGoogle;
   register: typeof register;
   logout: typeof logout;
+  refreshToken: typeof refreshToken;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -47,6 +49,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const handleLoginWithGoogle = async (...args: Parameters<typeof loginWithGoogle>) => {
+    try {
+      const result = await loginWithGoogle(...args);
+      setIsAuthenticated(true);
+      return result;
+    } catch (error) {
+      setIsAuthenticated(false);
+      throw error;
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await logout();
@@ -62,8 +75,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         isAuthenticated,
         login: handleLogin,
+        loginWithGoogle: handleLoginWithGoogle,
         register,
         logout: handleLogout,
+        refreshToken,
       }}
     >
       {children}

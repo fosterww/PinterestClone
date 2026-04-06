@@ -1,10 +1,11 @@
 import { useState } from "react";
+import { GoogleLogin } from "@react-oauth/google";
 import { useAuth } from "../context/AuthContext";
 
 type Mode = "login" | "register";
 
 export function LoginForm() {
-  const { login, register } = useAuth();
+  const { login, register, loginWithGoogle } = useAuth();
   const [mode, setMode] = useState<Mode>("login");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -21,12 +22,29 @@ export function LoginForm() {
       if (mode === "login") {
         await login(username, password);
       } else {
-        await register({ id: "", username, email, password } as any);
+        await register({ username, email, password });
         await login(username, password);
       }
     } catch (err: any) {
       const msg =
         err.response?.data?.detail ?? (mode === "login" ? "Invalid credentials" : "Registration failed");
+      setError(typeof msg === "string" ? msg : JSON.stringify(msg));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    try {
+      setLoading(true);
+      setError("");
+      if (credentialResponse.credential) {
+        await loginWithGoogle(credentialResponse.credential);
+      } else {
+        setError("Google authentication failed. No credential received.");
+      }
+    } catch (err: any) {
+      const msg = err.response?.data?.detail ?? "Google authentication failed";
       setError(typeof msg === "string" ? msg : JSON.stringify(msg));
     } finally {
       setLoading(false);
@@ -96,6 +114,22 @@ export function LoginForm() {
             {loading ? (isLogin ? "Logging in…" : "Registering…") : isLogin ? "Log in" : "Register"}
           </button>
         </form>
+
+        <div style={{ margin: "24px 0", display: "flex", alignItems: "center", color: "#767676", fontSize: "14px" }}>
+          <div style={{ flex: 1, height: "1px", background: "#e0e0e0" }} />
+          <span style={{ padding: "0 12px" }}>OR</span>
+          <div style={{ flex: 1, height: "1px", background: "#e0e0e0" }} />
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "center" }}>
+          <GoogleLogin
+            onSuccess={handleGoogleSuccess}
+            onError={() => setError("Google Login Failed")}
+            theme="filled_black"
+            shape="pill"
+            text={isLogin ? "signin_with" : "signup_with"}
+          />
+        </div>
 
         <div className="auth-toggle">
           {isLogin ? "Don't have an account?" : "Already have an account?"}

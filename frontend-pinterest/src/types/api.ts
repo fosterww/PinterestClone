@@ -14,7 +14,14 @@ export interface Pin {
     description?: string;
     image_url: string;
     link_url?: string;
+    likes_count: number;
     tags: Tag[];
+}
+
+export interface PinDetail extends Pin {
+    created_at: string;
+    comments: PinComments[];
+    user?: User;
 }
 
 export interface PinFilters {
@@ -24,10 +31,34 @@ export interface PinFilters {
     created_at?: CreatedAt;
 }
 
+export interface PinComments {
+    id: string;
+    comment: string;
+    likes_count: number;
+    created_at: string;
+    user: User;
+    replies: PinComments[];
+}
+
+export interface PinCommentCreate {
+    comment: string;
+    parent_id?: string | null;
+}
+
 export interface User {
     id: string;
     username: string;
     email: string;
+    full_name?: string;
+    bio?: string;
+    avatar_url?: string;
+}
+
+export interface RegisterData {
+    username: string;
+    email: string;
+    password: string;
+    full_name?: string;
     bio?: string;
     avatar_url?: string;
 }
@@ -38,5 +69,8 @@ export interface Board {
     title: string;
     description?: string;
     visibility: Visibility;
+}
+
+export interface BoardDetail extends Board {
     pins: Pin[];
 }

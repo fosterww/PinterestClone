@@ -2,11 +2,12 @@ import type { Pin } from "../types/api";
 
 interface PinCardProps {
   pin: Pin;
+  onClick?: () => void;
 }
 
-export function PinCard({ pin }: PinCardProps) {
+export function PinCard({ pin, onClick }: PinCardProps) {
   return (
-    <div className="pin-card">
+    <div className="pin-card" onClick={onClick}>
       <div style={{ position: "relative" }}>
         <img
           src={pin.image_url}
@@ -14,7 +15,14 @@ export function PinCard({ pin }: PinCardProps) {
           loading="lazy"
         />
         <div className="pin-overlay">
-          <button className="btn btn-red pin-save-btn">Save</button>
+          <button
+            className="btn btn-red pin-save-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+          >
+            Save
+          </button>
         </div>
       </div>
       <div className="pin-info">

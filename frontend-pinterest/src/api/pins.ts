@@ -1,5 +1,5 @@
 import { apiClient } from "./clients";
-import type { Pin, PinFilters } from "../types/api";
+import type { Pin, PinFilters, PinDetail, PinComments, PinCommentCreate } from "../types/api";
 
 function serializeFilters(filters: PinFilters, offset: number, limit: number) {
     const params: Record<string, unknown> = { offset, limit };
@@ -56,4 +56,34 @@ export async function createPin(data: {
     }
 
     return response.json() as Promise<Pin>;
+}
+
+export async function getRelatedPins(pinId: string): Promise<Pin[]> {
+    const response = await apiClient.get<Pin[]>(`/pins/${pinId}/related`);
+    return response.data;
+}
+
+export async function getPinDetail(pinId: string): Promise<PinDetail> {
+    const response = await apiClient.get<PinDetail>(`/pins/${pinId}`);
+    return response.data;
+}
+
+export async function likePin(pinId: string) {
+    const response = await apiClient.post(`/pins/${pinId}/like`);
+    return response.data;
+}
+
+export async function unlikePin(pinId: string) {
+    const response = await apiClient.post(`/pins/${pinId}/unlike`);
+    return response.data;
+}
+
+export async function getComments(pinId: string): Promise<PinComments[]> {
+    const response = await apiClient.get<PinComments[]>(`/pins/${pinId}/comments`);
+    return response.data;
+}
+
+export async function addComment(pinId: string, data: PinCommentCreate): Promise<PinComments> {
+    const response = await apiClient.post<PinComments>(`/pins/${pinId}/comments`, data);
+    return response.data;
 }

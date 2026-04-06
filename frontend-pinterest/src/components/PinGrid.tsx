@@ -6,9 +6,10 @@ const SKELETON_HEIGHTS = [280, 340, 210, 380, 260, 300, 220, 360, 290, 250];
 interface PinGridProps {
   pins: Pin[];
   isLoading?: boolean;
+  onPinClick?: (pin: Pin) => void;
 }
 
-export function PinGrid({ pins, isLoading }: PinGridProps) {
+export function PinGrid({ pins, isLoading, onPinClick }: PinGridProps) {
   if (isLoading) {
     return (
       <div className="pin-grid">
@@ -32,7 +33,11 @@ export function PinGrid({ pins, isLoading }: PinGridProps) {
   return (
     <div className="pin-grid">
       {pins.map((pin) => (
-        <PinCard key={pin.id} pin={pin} />
+        <PinCard 
+          key={pin.id} 
+          pin={pin} 
+          onClick={() => onPinClick?.(pin)} 
+        />
       ))}
     </div>
   );

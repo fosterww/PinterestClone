@@ -257,14 +257,12 @@ class PinRepository:
         parent_id: uuid.UUID | None = None,
     ) -> PinCommentModel:
         try:
-            data = {
-                "pin_id": pin_id,
-                "user_id": user_id,
-                "comment": text,
-            }
-            if parent_id:
-                data["parent_id"] = parent_id
-            comment = PinCommentModel(**data)
+            comment = PinCommentModel(
+                pin_id=pin_id,
+                user_id=user_id,
+                comment=text,
+                parent_id=parent_id,
+            )
             self.db.add(comment)
             await self.db.flush()
             result = await self.db.execute(
