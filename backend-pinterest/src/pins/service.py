@@ -3,6 +3,8 @@ import base64
 import io
 from typing import List
 
+from anyio import to_thread
+
 from PIL import Image, UnidentifiedImageError
 
 from fastapi import UploadFile
@@ -262,7 +264,7 @@ class PinService:
             comment = await self.repo.get_comment_by_id(parent_id)
             if not comment:
                 raise NotFoundError("Comment not found")
-        if not self.comment_filter.filter_comment_text(text):
+        if not await to_thread.run_sync(self.comment_filter.filter_comment_text, text):
             raise BadRequestError("Comment is toxic")
         new_comment = await self.repo.add_comment(
             pin_id=pin_id, user_id=user_id, text=text, parent_id=parent_id

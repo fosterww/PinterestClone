@@ -124,7 +124,6 @@ async def test_get_related_pins(client: AsyncClient, fake_image: bytes):
     token = login_response.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
-    # Unified with conftest.py's mock_s3_service
     p1 = await client.post(
         "/api/v2/pins/",
         data={"title": "Pin 1", "tags": ["art", "cool"]},
@@ -194,7 +193,6 @@ async def _create_pin(
     data: dict = {"title": title}
     if tags:
         data["tags"] = tags
-    # Unified with conftest.py's mock_s3_service
     response = await client.post(
         "/api/v2/pins/",
         data=data,

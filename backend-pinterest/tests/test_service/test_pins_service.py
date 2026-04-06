@@ -355,6 +355,18 @@ async def test_add_comment(pin_svc: PinService, sample_user):
 
 
 @pytest.mark.asyncio
+async def test_add_comment_toxic(pin_svc: PinService, sample_user):
+    pin = await pin_svc.create_pin(
+        mock_image_file(), sample_user, PinCreate(title="Comment Test")
+    )
+    with pytest.raises(HTTPException) as excinfo:
+        await pin_svc.add_comment(pin.id, None, sample_user.id, "You are stupid")
+    assert excinfo.value.status_code == 400
+    comments = await pin_svc.get_comments(pin.id)
+    assert len(comments) == 0
+
+
+@pytest.mark.asyncio
 async def test_add_comment_pin_not_found(pin_svc: PinService, sample_user):
     with pytest.raises(HTTPException) as excinfo:
         await pin_svc.add_comment(uuid.uuid4(), None, sample_user.id, "Comment")
