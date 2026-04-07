@@ -8,13 +8,13 @@ import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException
 
-from src.users.schemas import UserCreate
-from src.pins.schemas import PinCreate, PinUpdate, CreatedAt, Popularity
+from users.schemas import UserCreate
+from pins.schemas import PinCreate, PinUpdate, CreatedAt, Popularity
 
-from src.auth.service import AuthService
-from src.pins.service import PinService
-from src.users.repository import UserRepository
-from src.auth.repository import AuthRepository
+from auth.service import AuthService
+from pins.service import PinService
+from users.repository import UserRepository
+from auth.repository import AuthRepository
 
 
 def mock_image_file():

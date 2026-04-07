@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, Request
 
-from src.core.security.limiter import limiter
-from src.core.security.auth import get_current_user
-from src.users.models import UserModel
-from src.users.schemas import UserUpdate, UserResponse
-from src.core.dependencies import get_user_repository
-from src.users.repository import UserRepository
+from core.security.limiter import limiter
+from core.security.auth import get_current_user
+from users.models import UserModel
+from users.schemas import UserUpdate, UserResponse
+from core.dependencies import get_user_repository
+from users.repository import UserRepository
 
 router = APIRouter()
 

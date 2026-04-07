@@ -1,12 +1,12 @@
 import jwt
 from datetime import datetime, timezone
 
-from src.core.security.security import (
+from core.security.security import (
     hash_password,
     verify_password,
     create_access_token,
 )
-from src.core.config import settings
+from core.config import settings
 
 
 class TestHashPassword:

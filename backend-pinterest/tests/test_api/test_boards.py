@@ -4,7 +4,7 @@ import io
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from src.boards.models import BoardModel
+from boards.models import BoardModel
 
 
 @pytest.fixture

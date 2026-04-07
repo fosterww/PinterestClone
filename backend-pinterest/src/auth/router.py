@@ -2,13 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.security.auth import oauth2_scheme
-from src.database import get_db
-from src.auth.service import AuthService
-from src.users.schemas import UserCreate, UserResponse, GoogleLogin, TokenRefresh
-from src.auth.google_auth import verify_google_token
-from src.core.dependencies import get_auth_service
-from src.core.security.limiter import limiter
+from core.security.auth import oauth2_scheme
+from database import get_db
+from auth.service import AuthService
+from users.schemas import UserCreate, UserResponse, GoogleLogin, TokenRefresh
+from auth.google_auth import verify_google_token
+from core.dependencies import get_auth_service
+from core.security.limiter import limiter
 
 router = APIRouter()
 

@@ -10,18 +10,18 @@ from fastapi import HTTPException
 
 from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy import select
-from src.boards.models import BoardModel
+from boards.models import BoardModel
 
-from src.users.schemas import UserCreate
-from src.pins.schemas import PinCreate
-from src.boards.schemas import BoardCreate, BoardUpdate
+from users.schemas import UserCreate
+from pins.schemas import PinCreate
+from boards.schemas import BoardCreate, BoardUpdate
 
-from src.auth.service import AuthService
-from src.pins.service import PinService
-from src.boards.service import BoardService
-from src.boards.repository import BoardRepository
-from src.users.repository import UserRepository
-from src.auth.repository import AuthRepository
+from auth.service import AuthService
+from pins.service import PinService
+from boards.service import BoardService
+from boards.repository import BoardRepository
+from users.repository import UserRepository
+from auth.repository import AuthRepository
 
 
 def mock_image_file():

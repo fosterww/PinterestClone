@@ -1,7 +1,7 @@
 from typing import Any
 from redis.asyncio import Redis, RedisError
 
-from src.core.logger import logger
+from core.logger import logger
 
 
 class CacheService:

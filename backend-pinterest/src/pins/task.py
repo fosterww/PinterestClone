@@ -1,8 +1,8 @@
 import asyncio
 import base64
 
-from src.core.infra.celery import celery_app
-from src.core.infra.clarifai import get_clarifai_service
+from core.infra.celery import celery_app
+from core.infra.clarifai import get_clarifai_service
 
 
 async def _index_image(pin_id: str, image_bytes: bytes) -> None:

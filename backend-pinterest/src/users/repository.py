@@ -2,10 +2,10 @@ from sqlalchemy import select, or_
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.users.models import UserModel
-from src.users.schemas import UserUpdate
-from src.core.exception import AppError, ConflictError
-from src.core.logger import logger
+from users.models import UserModel
+from users.schemas import UserUpdate
+from core.exception import AppError, ConflictError
+from core.logger import logger
 
 
 class UserRepository:

@@ -2,10 +2,10 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 import uuid
 
-from src.auth.service import AuthService
-from src.users.repository import UserRepository
-from src.users.schemas import UserCreate, UserUpdate
-from src.auth.repository import AuthRepository
+from auth.service import AuthService
+from users.repository import UserRepository
+from users.schemas import UserCreate, UserUpdate
+from auth.repository import AuthRepository
 
 
 @pytest.fixture

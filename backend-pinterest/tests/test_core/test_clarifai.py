@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from src.core.infra.clarifai import ClarifaiService
+from core.infra.clarifai import ClarifaiService
 
 
 @pytest.fixture

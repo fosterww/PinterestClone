@@ -10,10 +10,10 @@ from sqlalchemy import Enum as SAEnum
 from sqlalchemy import UUID as SAUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.database import Base
+from database import Base
 
 if TYPE_CHECKING:
-    from src.users.models import UserModel
+    from users.models import UserModel
 
 
 class BoardVisibility(str, Enum):

@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi import HTTPException, UploadFile
 
-from src.core.infra.s3 import S3Service
+from core.infra.s3 import S3Service
 
 
 @pytest.fixture

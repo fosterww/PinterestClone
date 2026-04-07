@@ -4,8 +4,8 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from src.tags.schemas import TagResponse
-from src.users.schemas import UserResponse
+from tags.schemas import TagResponse
+from users.schemas import UserResponse
 
 
 class PinBase(BaseModel):

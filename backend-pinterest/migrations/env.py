@@ -7,9 +7,9 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
-from src.core.config import settings  # noqa: E402
-from src.database import Base  # noqa: E402
-from src.users.models import UserModel, RefreshTokenModel  # noqa: F401
+from core.config import settings  # noqa: E402
+from database import Base  # noqa: E402
+from users.models import UserModel, RefreshTokenModel  # noqa: F401
 
 config = context.config
 

@@ -2,20 +2,20 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from redis.asyncio import Redis
 
-from src.database import get_db
-from src.core.config import settings
-from src.core.security.session import SessionService
-from src.core.infra.cache import CacheService
-from src.core.infra.s3 import S3Service
-from src.core.infra.comment_filter import CommentFilter
-from src.users.repository import UserRepository
-from src.auth.service import AuthService
-from src.pins.repository import PinRepository
-from src.pins.service import PinService
-from src.boards.repository import BoardRepository
-from src.boards.service import BoardService
-from src.auth.repository import AuthRepository
-from src.tags.service import TagService
+from database import get_db
+from core.config import settings
+from core.security.session import SessionService
+from core.infra.cache import CacheService
+from core.infra.s3 import S3Service
+from core.infra.comment_filter import CommentFilter
+from users.repository import UserRepository
+from auth.service import AuthService
+from pins.repository import PinRepository
+from pins.service import PinService
+from boards.repository import BoardRepository
+from boards.service import BoardService
+from auth.repository import AuthRepository
+from tags.service import TagService
 
 
 def get_board_repository(db: AsyncSession = Depends(get_db)) -> BoardRepository:

@@ -2,13 +2,13 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.exception import NotFoundError, ForbiddenError
-from src.core.security.session import SessionService
-from src.boards.models import BoardModel
-from src.users.models import UserModel
-from src.boards.schemas import BoardCreate, BoardUpdate, BoardResponse
-from src.boards.repository import BoardRepository
-from src.pins.service import PinService
+from core.exception import NotFoundError, ForbiddenError
+from core.security.session import SessionService
+from boards.models import BoardModel
+from users.models import UserModel
+from boards.schemas import BoardCreate, BoardUpdate, BoardResponse
+from boards.repository import BoardRepository
+from pins.service import PinService
 
 
 class BoardService:

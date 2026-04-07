@@ -4,9 +4,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.logger import logger
-from src.boards.models import TagModel
-from src.core.exception import AppError
+from core.logger import logger
+from boards.models import TagModel
+from core.exception import AppError
 
 
 class TagService:

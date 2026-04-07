@@ -1,7 +1,7 @@
 import uuid
 
 from redis.asyncio import Redis, RedisError
-from src.core.logger import logger
+from core.logger import logger
 
 
 class SessionService:

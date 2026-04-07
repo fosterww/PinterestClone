@@ -1,8 +1,8 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.tags.service import TagService
-from src.boards.models import TagModel
+from tags.service import TagService
+from boards.models import TagModel
 
 
 @pytest.fixture

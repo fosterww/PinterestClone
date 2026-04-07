@@ -5,11 +5,11 @@ from jwt.exceptions import InvalidTokenError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.config import settings
-from src.database import get_db
-from src.users.models import UserModel
-from src.core.security.session import SessionService
-from src.core.dependencies import get_session_service
+from core.config import settings
+from database import get_db
+from users.models import UserModel
+from core.security.session import SessionService
+from core.dependencies import get_session_service
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v2/auth/login")
 

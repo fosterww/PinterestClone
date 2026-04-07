@@ -2,7 +2,7 @@ import anyio
 from google.auth.transport import requests
 from google.oauth2 import id_token
 
-from src.core.config import settings
+from core.config import settings
 
 
 async def verify_google_token(token: str) -> dict | None:

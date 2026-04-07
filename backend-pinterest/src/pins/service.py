@@ -10,20 +10,20 @@ from PIL import Image, UnidentifiedImageError
 from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.logger import logger
-from src.core.infra.cache import CacheService
-from src.core.infra.s3 import S3Service
-from src.core.infra.comment_filter import CommentFilter
-from src.core.exception import (
+from core.logger import logger
+from core.infra.cache import CacheService
+from core.infra.s3 import S3Service
+from core.infra.comment_filter import CommentFilter
+from core.exception import (
     ConflictError,
     NotFoundError,
     ForbiddenError,
     BadRequestError,
 )
 
-from src.boards.models import PinModel, PinCommentModel
-from src.users.models import UserModel
-from src.pins.schemas import (
+from boards.models import PinModel, PinCommentModel
+from users.models import UserModel
+from pins.schemas import (
     PinCommentResponse,
     PinCreate,
     PinUpdate,
@@ -32,9 +32,9 @@ from src.pins.schemas import (
     PinResponse,
     PinListResponse,
 )
-from src.tags.service import TagService
-from src.pins.repository import PinRepository
-from src.pins.task import index_image_task
+from tags.service import TagService
+from pins.repository import PinRepository
+from pins.task import index_image_task
 
 
 class PinService:

@@ -11,16 +11,16 @@ from fastapi import (
     Form,
     Request,
 )
-from src.core.security.limiter import limiter
-from src.core.infra.clarifai import ClarifaiService
-from src.core.dependencies import (
+from core.security.limiter import limiter
+from core.infra.clarifai import ClarifaiService
+from core.dependencies import (
     get_pin_repository,
     get_pin_service,
 )
-from src.core.infra.clarifai import get_clarifai_service
-from src.core.security.auth import get_current_user
-from src.users.models import UserModel
-from src.pins.schemas import (
+from core.infra.clarifai import get_clarifai_service
+from core.security.auth import get_current_user
+from users.models import UserModel
+from pins.schemas import (
     PinCreate,
     PinUpdate,
     PinResponse,
@@ -31,9 +31,9 @@ from src.pins.schemas import (
     PinCommentResponse,
 )
 
-from src.pins.repository import PinRepository
-from src.pins.service import PinService
-from src.pins.task import delete_image_task
+from pins.repository import PinRepository
+from pins.service import PinService
+from pins.task import delete_image_task
 
 
 router = APIRouter()

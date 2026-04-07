@@ -5,9 +5,9 @@ from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.core.exception import AppError, ConflictError
-from src.core.logger import logger
-from src.boards.models import (
+from core.exception import AppError, ConflictError
+from core.logger import logger
+from boards.models import (
     PinModel,
     PinLikeModel,
     TagModel,
@@ -15,8 +15,8 @@ from src.boards.models import (
     PinCommentModel,
     PinCommentLikeModel,
 )
-from src.users.models import UserModel
-from src.pins.schemas import (
+from users.models import UserModel
+from pins.schemas import (
     CreatedAt,
     Popularity,
     PinCreate,

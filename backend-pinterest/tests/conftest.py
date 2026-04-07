@@ -12,18 +12,18 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from src.database import Base, get_db
-from src.main import app
-from src.core.security.limiter import limiter
-from src.core.dependencies import (
+from database import Base, get_db
+from main import app
+from core.security.limiter import limiter
+from core.dependencies import (
     get_session_service,
     get_s3_service,
     get_comment_filter,
 )
-from src.pins.repository import PinRepository
-from src.pins.service import PinService
-from src.tags.service import TagService
-from src.core.infra.comment_filter import CommentFilter
+from pins.repository import PinRepository
+from pins.service import PinService
+from tags.service import TagService
+from core.infra.comment_filter import CommentFilter
 
 limiter.enabled = False
 
@@ -143,8 +143,8 @@ async def client(
 @pytest.fixture(autouse=True)
 def mock_celery_tasks():
     with (
-        patch("src.pins.task.index_image_task.delay") as mock_index,
-        patch("src.pins.task.delete_image_task.delay") as mock_delete,
+        patch("pins.task.index_image_task.delay") as mock_index,
+        patch("pins.task.delete_image_task.delay") as mock_delete,
     ):
         yield mock_index, mock_delete
 
@@ -163,7 +163,7 @@ def mock_pil_image_open():
     mock_img.__enter__ = MagicMock(return_value=mock_img)
     mock_img.__exit__ = MagicMock(return_value=False)
 
-    with patch("src.pins.service.Image.open", return_value=mock_img):
+    with patch("pins.service.Image.open", return_value=mock_img):
         yield
 
 

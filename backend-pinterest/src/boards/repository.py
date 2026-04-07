@@ -5,12 +5,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from src.core.exception import AppError, ConflictError
-from src.core.logger import logger
+from core.exception import AppError, ConflictError
+from core.logger import logger
 
-from src.boards.models import BoardModel, PinModel, PinCommentModel
-from src.users.models import UserModel
-from src.boards.schemas import BoardCreate, BoardUpdate
+from boards.models import BoardModel, PinModel, PinCommentModel
+from users.models import UserModel
+from boards.schemas import BoardCreate, BoardUpdate
 
 
 class BoardRepository:

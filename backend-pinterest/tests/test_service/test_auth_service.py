@@ -2,11 +2,11 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException
 
-from src.auth.service import AuthService
-from src.users.schemas import UserCreate
-from src.core.security.security import verify_password
-from src.users.repository import UserRepository
-from src.auth.repository import AuthRepository
+from auth.service import AuthService
+from users.schemas import UserCreate
+from core.security.security import verify_password
+from users.repository import UserRepository
+from auth.repository import AuthRepository
 
 
 @pytest.fixture

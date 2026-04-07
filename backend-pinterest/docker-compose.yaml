@@ -83,10 +83,12 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    environment:
+      - PYTHONPATH=/app/src
     volumes:
       - ./src:/app/src
       - cache:/app/cache
-    command: celery -A src.core.infra.celery worker --loglevel=info
+    command: celery -A core.infra.celery worker --loglevel=info
 
   celery-beat:
     build: .
@@ -96,9 +98,11 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    environment:
+      - PYTHONPATH=/app/src
     volumes:
       - ./src:/app/src
-    command: celery -A src.core.infra.celery beat --loglevel=info
+    command: celery -A core.infra.celery beat --loglevel=info
 
   api:
     build: .
@@ -114,12 +118,14 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    environment:
+      - PYTHONPATH=/app/src
     ports:
       - "8000:8000"
     volumes:
       - ./src:/app/src
       - cache:/app/cache
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
 volumes:
   postgres_data:

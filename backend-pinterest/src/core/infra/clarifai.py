@@ -3,8 +3,8 @@ import httpx
 from typing import List
 
 from tenacity import retry, stop_after_attempt, wait_exponential
-from src.core.logger import logger
-from src.core.config import settings
+from core.logger import logger
+from core.config import settings
 
 
 class ClarifaiService:

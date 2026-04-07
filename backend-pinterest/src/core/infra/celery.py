@@ -1,13 +1,13 @@
 from celery import Celery
 from kombu import Exchange, Queue
 
-from src.core.config import settings
+from core.config import settings
 
 celery_app = Celery(
     "pinterest",
     broker=settings.rabbitmq_url,
     backend=settings.redis_url,
-    include=["src.pins.task"],
+    include=["pins.task"],
 )
 
 celery_app.conf.update(

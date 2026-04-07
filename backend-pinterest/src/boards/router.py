@@ -3,17 +3,17 @@ from typing import List
 
 from fastapi import APIRouter, Depends, status, Request
 
-from src.core.security.limiter import limiter
-from src.core.security.auth import get_current_user
-from src.users.models import UserModel
-from src.boards.schemas import (
+from core.security.limiter import limiter
+from core.security.auth import get_current_user
+from users.models import UserModel
+from boards.schemas import (
     BoardCreate,
     BoardUpdate,
     BoardResponse,
     BoardPinsResponse,
 )
-from src.boards.service import BoardService
-from src.core.dependencies import get_board_service
+from boards.service import BoardService
+from core.dependencies import get_board_service
 
 router = APIRouter()
 

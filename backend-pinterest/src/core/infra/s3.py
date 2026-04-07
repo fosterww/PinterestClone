@@ -4,7 +4,7 @@ import aioboto3
 from tenacity import retry, stop_after_attempt, wait_exponential
 from fastapi import UploadFile, HTTPException, status
 
-from src.core.config import settings
+from core.config import settings
 
 
 class S3Service:
