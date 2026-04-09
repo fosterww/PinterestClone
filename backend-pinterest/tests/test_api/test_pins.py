@@ -43,7 +43,9 @@ async def test_pin_crud_flow(client: AsyncClient, fake_image: bytes, mock_celery
     data = response.json()
     assert data["title"] == "My Test Pin"
     assert data["image_url"] == "http://mock-s3-url.com/image.jpg"
-    assert data["tags"] == []
+    returned_tag_names = {t["name"] for t in data["tags"]}
+    assert "mock_tag1" in returned_tag_names
+    assert "mock_tag2" in returned_tag_names
     pin_id = data["id"]
     mock_index_task.assert_called_once()
     args, _ = mock_index_task.call_args
@@ -53,7 +55,7 @@ async def test_pin_crud_flow(client: AsyncClient, fake_image: bytes, mock_celery
     assert response.status_code == 200
     assert len(response.json()) > 0
 
-    response = await client.get(f"/api/v2/pins/{pin_id}")
+    response = await client.get(f"/api/v2/pins/{pin_id}", headers=headers)
     assert response.status_code == 200
     assert response.json()["id"] == pin_id
 
@@ -67,7 +69,7 @@ async def test_pin_crud_flow(client: AsyncClient, fake_image: bytes, mock_celery
     assert response.status_code == 204
     mock_delete_task.assert_called_once_with(pin_id)
 
-    response = await client.get(f"/api/v2/pins/{pin_id}")
+    response = await client.get(f"/api/v2/pins/{pin_id}", headers=headers)
     assert response.status_code == 404
     assert response.json()["detail"] == "Pin not found"
 

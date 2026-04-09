@@ -16,6 +16,7 @@ async def read_current_user(
     request: Request,
     current_user: UserModel = Depends(get_current_user),
 ) -> UserResponse:
+    """Get the current user."""
     return current_user
 
 
@@ -27,4 +28,5 @@ async def update_current_user(
     current_user: UserModel = Depends(get_current_user),
     user_repository: UserRepository = Depends(get_user_repository),
 ) -> UserResponse:
+    """Update current user."""
     return await user_repository.update_user(current_user.id, data)

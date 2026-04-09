@@ -17,7 +17,7 @@ from pins.schemas import PinCreate
 from boards.schemas import BoardCreate, BoardUpdate
 
 from auth.service import AuthService
-from pins.service import PinService
+from pins.service.pin import PinService
 from boards.service import BoardService
 from boards.repository import BoardRepository
 from users.repository import UserRepository

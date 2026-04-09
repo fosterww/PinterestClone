@@ -34,6 +34,7 @@ dependencies = [
     "pillow>=12.1.1",
     "transformers>=5.5.0",
     "torch>=2.8.0",
+    "google-genai>=1.71.0",
 ]
 
 [[tool.uv.index]]

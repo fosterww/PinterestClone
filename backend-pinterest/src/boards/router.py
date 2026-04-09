@@ -26,6 +26,7 @@ async def create_new_board(
     current_user: UserModel = Depends(get_current_user),
     board_service: BoardService = Depends(get_board_service),
 ) -> BoardResponse:
+    """Create a new board."""
     return await board_service.create_board(current_user, data)
 
 
@@ -36,6 +37,7 @@ async def list_boards(
     current_user: UserModel = Depends(get_current_user),
     board_service: BoardService = Depends(get_board_service),
 ) -> List[BoardResponse]:
+    """Get all boards for the current user."""
     return await board_service.get_user_boards(current_user.id)
 
 
@@ -46,6 +48,7 @@ async def read_board(
     board_id: uuid.UUID,
     board_service: BoardService = Depends(get_board_service),
 ) -> BoardPinsResponse:
+    """Get a board by id."""
     return await board_service.get_board_by_id(board_id)
 
 
@@ -58,6 +61,7 @@ async def patch_board(
     current_user: UserModel = Depends(get_current_user),
     board_service: BoardService = Depends(get_board_service),
 ) -> BoardResponse:
+    """Update a board."""
     return await board_service.update_board(board_id, data, current_user)
 
 
@@ -70,6 +74,7 @@ async def add_pin(
     current_user: UserModel = Depends(get_current_user),
     board_service: BoardService = Depends(get_board_service),
 ):
+    """Add a pin to a board."""
     await board_service.add_pin_to_board(board_id, pin_id, current_user)
 
 
@@ -82,4 +87,5 @@ async def remove_pin(
     current_user: UserModel = Depends(get_current_user),
     board_service: BoardService = Depends(get_board_service),
 ):
+    """Remove a pin from a board."""
     return await board_service.remove_pin_from_board(board_id, pin_id, current_user)

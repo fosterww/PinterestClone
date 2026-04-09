@@ -21,6 +21,7 @@ async def register(
     db: AsyncSession = Depends(get_db),
     auth_service: AuthService = Depends(get_auth_service),
 ) -> UserResponse:
+    """Register a new user."""
     user = await auth_service.register_user(data)
     await db.commit()
     return user
@@ -34,6 +35,7 @@ async def login(
     db: AsyncSession = Depends(get_db),
     auth_service: AuthService = Depends(get_auth_service),
 ):
+    """Login with username and password."""
     user = await auth_service.authenticate_user(form_data.username, form_data.password)
     if user is None:
         raise HTTPException(
@@ -55,6 +57,7 @@ async def login_google(
     db: AsyncSession = Depends(get_db),
     auth_service: AuthService = Depends(get_auth_service),
 ):
+    """Login with Google token."""
     google_info = await verify_google_token(data.id_token)
     if google_info is None:
         raise HTTPException(
@@ -77,6 +80,7 @@ async def refresh_token(
     db: AsyncSession = Depends(get_db),
     auth_service: AuthService = Depends(get_auth_service),
 ):
+    """Refresh access token."""
     tokens = await auth_service.refresh_user_token(data.refresh_token)
     await db.commit()
     return tokens

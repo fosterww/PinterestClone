@@ -11,13 +11,15 @@ from fastapi import (
     Form,
     Request,
 )
+
 from core.security.limiter import limiter
-from core.infra.clarifai import ClarifaiService
+from core.infra.clarifai import ClarifaiService, get_clarifai_service
 from core.dependencies import (
     get_pin_repository,
     get_pin_service,
+    get_comment_service,
+    get_discovery_service,
 )
-from core.infra.clarifai import get_clarifai_service
 from core.security.auth import get_current_user
 from users.models import UserModel
 from pins.schemas import (
@@ -31,8 +33,10 @@ from pins.schemas import (
     PinCommentResponse,
 )
 
-from pins.repository import PinRepository
-from pins.service import PinService
+from pins.repository.pin import PinRepository
+from pins.service.pin import PinService
+from pins.service.comment import CommentService
+from pins.service.discovery import DiscoveryService
 from pins.task import delete_image_task
 
 
@@ -51,6 +55,7 @@ async def create_new_pin(
     current_user: UserModel = Depends(get_current_user),
     service: PinService = Depends(get_pin_service),
 ) -> PinListResponse:
+    """Create a new pin."""
     data = PinCreate(title=title, description=description, link_url=link_url, tags=tags)
     return await service.create_pin(image, current_user, data)
 
@@ -62,9 +67,10 @@ async def list_pins(
     tags: Annotated[list[str], Query()] = [],
     pagination: Pagination = Depends(),
     filter_pins: FilterPins = Depends(),
-    repo: PinRepository = Depends(get_pin_repository),
+    service: PinService = Depends(get_pin_service),
 ) -> List[PinListResponse]:
-    return await repo.get_pins(
+    """Get all pins with optional filtering and pagination."""
+    return await service.get_pins(
         offset=pagination.offset,
         limit=pagination.limit,
         search=pagination.search,
@@ -74,14 +80,35 @@ async def list_pins(
     )
 
 
+@router.get("/personalized")
+@limiter.limit("10/minute")
+async def read_personalized_pins(
+    request: Request,
+    current_user: UserModel = Depends(get_current_user),
+    discovery_service: DiscoveryService = Depends(get_discovery_service),
+) -> List[PinListResponse]:
+    """Get personalized feed."""
+    return await discovery_service.get_personalized_feed(current_user.id)
+
+
 @router.get("/{pin_id}")
 @limiter.limit("10/minute")
 async def read_pin(
     request: Request,
     pin_id: uuid.UUID,
-    service: PinService = Depends(get_pin_service),
+    current_user: UserModel = Depends(get_current_user),
+    pin_service: PinService = Depends(get_pin_service),
+    comment_service: CommentService = Depends(get_comment_service),
+    discovery_service: DiscoveryService = Depends(get_discovery_service),
 ) -> PinResponse:
-    return await service.get_pin_detail(pin_id)
+    """Get pin detail by id, including comments and recommendation tracking."""
+    pin = await pin_service.get_pin_by_id(pin_id)
+    if pin.tags:
+        tag_ids = [tag.id for tag in pin.tags]
+        await discovery_service.record_tag_visit(current_user.id, tag_ids)
+    comments = await comment_service.get_comments(pin_id)
+    pin_data = PinListResponse.model_validate(pin)
+    return PinResponse(**pin_data.model_dump(), comments=comments)
 
 
 @router.get("/user/{username}")
@@ -91,6 +118,7 @@ async def read_user_pins(
     username: str,
     repo: PinRepository = Depends(get_pin_repository),
 ) -> List[PinListResponse]:
+    """Get all pins by username."""
     return await repo.get_user_pins(username)
 
 
@@ -124,9 +152,8 @@ async def patch_pin(
     data: PinUpdate,
     current_user: UserModel = Depends(get_current_user),
     service: PinService = Depends(get_pin_service),
-    repo: PinRepository = Depends(get_pin_repository),
 ) -> PinListResponse:
-    pin = await repo.get_pin_by_id(pin_id)
+    pin = await service.get_pin_by_id(pin_id)
     return await service.update_pin(pin, data, current_user)
 
 
@@ -137,11 +164,9 @@ async def remove_pin(
     pin_id: uuid.UUID,
     current_user: UserModel = Depends(get_current_user),
     service: PinService = Depends(get_pin_service),
-    repo: PinRepository = Depends(get_pin_repository),
 ):
-    pin = await repo.get_pin_by_id(pin_id)
+    pin = await service.get_pin_by_id(pin_id)
     await service.delete_pin(pin, current_user)
-
     delete_image_task.delay(str(pin_id))
 
 
@@ -150,9 +175,9 @@ async def remove_pin(
 async def get_comments(
     request: Request,
     pin_id: uuid.UUID,
-    service: PinService = Depends(get_pin_service),
+    comment_service: CommentService = Depends(get_comment_service),
 ) -> List[PinCommentResponse]:
-    return await service.get_comments(pin_id)
+    return await comment_service.get_comments(pin_id)
 
 
 @router.post("/{pin_id}/comments")
@@ -162,9 +187,9 @@ async def add_comment(
     pin_id: uuid.UUID,
     data: PinCommentCreate,
     current_user: UserModel = Depends(get_current_user),
-    service: PinService = Depends(get_pin_service),
+    comment_service: CommentService = Depends(get_comment_service),
 ) -> PinCommentResponse:
-    return await service.add_comment(
+    return await comment_service.add_comment(
         pin_id, data.parent_id, current_user.id, data.comment
     )
 
@@ -176,9 +201,9 @@ async def like_comment(
     pin_id: uuid.UUID,
     comment_id: uuid.UUID,
     current_user: UserModel = Depends(get_current_user),
-    service: PinService = Depends(get_pin_service),
+    comment_service: CommentService = Depends(get_comment_service),
 ) -> PinCommentResponse:
-    return await service.add_comment_like(pin_id, comment_id, current_user.id)
+    return await comment_service.add_comment_like(pin_id, comment_id, current_user.id)
 
 
 @router.post("/{pin_id}/comments/{comment_id}/unlike")
@@ -188,9 +213,11 @@ async def unlike_comment(
     pin_id: uuid.UUID,
     comment_id: uuid.UUID,
     current_user: UserModel = Depends(get_current_user),
-    service: PinService = Depends(get_pin_service),
+    comment_service: CommentService = Depends(get_comment_service),
 ) -> PinCommentResponse:
-    return await service.delete_comment_like(pin_id, comment_id, current_user.id)
+    return await comment_service.delete_comment_like(
+        pin_id, comment_id, current_user.id
+    )
 
 
 @router.patch("/{pin_id}/comments/{comment_id}")
@@ -200,9 +227,9 @@ async def patch_comment(
     comment_id: uuid.UUID,
     text: str = Form(...),
     current_user: UserModel = Depends(get_current_user),
-    service: PinService = Depends(get_pin_service),
+    comment_service: CommentService = Depends(get_comment_service),
 ) -> PinCommentResponse:
-    return await service.update_comment(comment_id, current_user.id, text)
+    return await comment_service.update_comment(comment_id, current_user.id, text)
 
 
 @router.delete(
@@ -214,9 +241,9 @@ async def remove_comment(
     pin_id: uuid.UUID,
     comment_id: uuid.UUID,
     current_user: UserModel = Depends(get_current_user),
-    service: PinService = Depends(get_pin_service),
+    comment_service: CommentService = Depends(get_comment_service),
 ) -> None:
-    await service.delete_comment(pin_id, comment_id, current_user)
+    await comment_service.delete_comment(pin_id, comment_id, current_user)
 
 
 @router.get("/{pin_id}/related")
@@ -225,12 +252,13 @@ async def get_related_pins(
     request: Request,
     pin_id: uuid.UUID,
     clarifai_service: ClarifaiService = Depends(get_clarifai_service),
-    service: PinService = Depends(get_pin_service),
-    repo: PinRepository = Depends(get_pin_repository),
+    discovery_service: DiscoveryService = Depends(get_discovery_service),
+    pin_repo: PinRepository = Depends(get_pin_repository),
 ) -> List[PinListResponse]:
+    """Get related pins combining Clarifai visual search and Tag-based discovery."""
     similar_ids = await clarifai_service.search_similar_images_by_id(str(pin_id))
-    db_related_pins = await service.get_related_pins(pin_id, limit=20)
-    clarifai_pins = await repo.get_pins_by_ids(similar_ids)
+    db_related_pins = await discovery_service.get_related_pins(pin_id, limit=20)
+    clarifai_pins = await pin_repo.get_pins_by_ids(similar_ids)
 
     seen_ids = set()
     merged_pins = []

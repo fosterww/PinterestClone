@@ -8,7 +8,7 @@ from boards.models import BoardModel
 from users.models import UserModel
 from boards.schemas import BoardCreate, BoardUpdate, BoardResponse
 from boards.repository import BoardRepository
-from pins.service import PinService
+from pins.service.pin import PinService
 
 
 class BoardService:

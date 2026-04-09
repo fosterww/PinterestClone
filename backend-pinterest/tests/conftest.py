@@ -20,10 +20,14 @@ from core.dependencies import (
     get_s3_service,
     get_comment_filter,
 )
-from pins.repository import PinRepository
-from pins.service import PinService
+from pins.repository.pin import PinRepository
+from pins.service.pin import PinService
 from tags.service import TagService
-from core.infra.comment_filter import CommentFilter
+from pins.service.comment import CommentService
+from pins.repository.comment import CommentRepository
+from pins.service.discovery import DiscoveryService
+from pins.repository.discover import DiscoverRepository
+
 
 limiter.enabled = False
 
@@ -88,7 +92,16 @@ def mock_session_service():
 
 @pytest.fixture
 def mock_cache_service():
+    from unittest.mock import AsyncMock, MagicMock
+
     class MockCacheService:
+        def __init__(self):
+            self.redis = MagicMock()
+            self.redis.lrem = AsyncMock()
+            self.redis.lpush = AsyncMock()
+            self.redis.ltrim = AsyncMock()
+            self.redis.lrange = AsyncMock(return_value=[])
+
         async def get_pattern(self, pattern):
             return []
 
@@ -112,7 +125,7 @@ def mock_s3_service():
 
 @pytest_asyncio.fixture
 async def client(
-    db_session: AsyncSession, mock_session_service, mock_s3_service
+    db_session: AsyncSession, mock_session_service, mock_s3_service, mock_cache_service
 ) -> AsyncGenerator[AsyncClient, None]:
 
     async def override_get_db():
@@ -121,15 +134,33 @@ async def client(
     def override_get_session_service():
         return mock_session_service
 
+    def override_get_cache_service():
+        return mock_cache_service
+
     def override_get_s3_service():
         return mock_s3_service
 
+    def override_get_gemini_service():
+        class MockGeminiService:
+            def generate_tags(self, image_bytes, title, description):
+                return ["mock_tag1", "mock_tag2"]
+
+        return MockGeminiService()
+
     def override_get_comment_filter():
-        return CommentFilter()
+        class MockCommentFilter:
+            def filter_comment_text(self, text: str) -> bool:
+                return True
+
+        return MockCommentFilter()
+
+    from core.dependencies import get_cache_service, get_gemini_service
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_session_service] = override_get_session_service
+    app.dependency_overrides[get_cache_service] = override_get_cache_service
     app.dependency_overrides[get_s3_service] = override_get_s3_service
+    app.dependency_overrides[get_gemini_service] = override_get_gemini_service
     app.dependency_overrides[get_comment_filter] = override_get_comment_filter
 
     async with AsyncClient(
@@ -151,7 +182,11 @@ def mock_celery_tasks():
 
 @pytest.fixture
 def comment_filter():
-    return CommentFilter()
+    class MockCommentFilter:
+        def filter_comment_text(self, text: str) -> bool:
+            return "stupid" not in text.lower() and "toxic" not in text.lower()
+
+    return MockCommentFilter()
 
 
 @pytest.fixture(autouse=True)
@@ -163,21 +198,51 @@ def mock_pil_image_open():
     mock_img.__enter__ = MagicMock(return_value=mock_img)
     mock_img.__exit__ = MagicMock(return_value=False)
 
-    with patch("pins.service.Image.open", return_value=mock_img):
+    with patch("pins.service.pin.Image.open", return_value=mock_img):
         yield
 
 
 @pytest.fixture
+def mock_gemini_service():
+    class MockGeminiService:
+        def generate_tags(self, image_bytes, title, description):
+            return ["mock_tag_fixture"]
+
+    return MockGeminiService()
+
+
+@pytest.fixture
 def pin_svc(
-    db_session: AsyncSession, mock_cache_service, mock_s3_service, comment_filter
+    db_session: AsyncSession,
+    mock_s3_service,
+    mock_gemini_service,
 ):
     repo = PinRepository(db_session)
     tag_service = TagService(db_session)
     return PinService(
         db_session,
-        mock_cache_service,
         repo,
         tag_service,
         mock_s3_service,
-        comment_filter,
+        mock_gemini_service,
     )
+
+
+@pytest.fixture
+def comment_svc(
+    db_session: AsyncSession,
+    comment_filter,
+):
+    pin_repo = PinRepository(db_session)
+    comment_repo = CommentRepository(db_session)
+    return CommentService(pin_repo, comment_repo, comment_filter)
+
+
+@pytest.fixture
+def discovery_svc(
+    db_session: AsyncSession,
+    mock_cache_service,
+):
+    pin_repo = PinRepository(db_session)
+    discover_repo = DiscoverRepository(db_session)
+    return DiscoveryService(pin_repo, discover_repo, mock_cache_service)

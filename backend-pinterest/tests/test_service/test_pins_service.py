@@ -12,7 +12,7 @@ from users.schemas import UserCreate
 from pins.schemas import PinCreate, PinUpdate, CreatedAt, Popularity
 
 from auth.service import AuthService
-from pins.service import PinService
+from pins.service.pin import PinService
 from users.repository import UserRepository
 from auth.repository import AuthRepository
 
@@ -66,7 +66,8 @@ async def test_create_and_get_pin_no_tags(pin_svc: PinService, sample_user):
     assert created_pin.title == "Test Pin"
     assert created_pin.image_url == "http://mock-s3-url.com/image.jpg"
     assert created_pin.owner_id == sample_user.id
-    assert created_pin.tags == []
+    tag_names = {t.name for t in created_pin.tags}
+    assert "mock_tag_fixture" in tag_names
 
     fetched_pin = await pin_svc.get_pin_by_id(created_pin.id)
     assert fetched_pin is not None
@@ -150,7 +151,9 @@ async def test_delete_pin_success_and_forbidden(
 
 
 @pytest.mark.asyncio
-async def test_get_related_pins_from_db(pin_svc: PinService, sample_user):
+async def test_get_related_pins_from_db(
+    pin_svc: PinService, sample_user, discovery_svc
+):
     pin1 = await pin_svc.create_pin(
         mock_image_file(), sample_user, PinCreate(title="Pin 1", tags=["cats", "funny"])
     )
@@ -164,7 +167,7 @@ async def test_get_related_pins_from_db(pin_svc: PinService, sample_user):
         mock_image_file(), sample_user, PinCreate(title="Pin 4", tags=["birds"])
     )
 
-    related = await pin_svc.get_related_pins(pin1.id)
+    related = await discovery_svc.get_related_pins(pin1.id)
     assert len(related) == 2
     related_ids = {r.id for r in related}
     assert pin2.id in related_ids
@@ -344,101 +347,105 @@ async def test_get_pins_search_and_tag_combined(pin_svc: PinService, sample_user
 
 
 @pytest.mark.asyncio
-async def test_add_comment(pin_svc: PinService, sample_user):
+async def test_add_comment(pin_svc: PinService, sample_user, comment_svc):
     pin = await pin_svc.create_pin(
         mock_image_file(), sample_user, PinCreate(title="Comment Test")
     )
-    comment = await pin_svc.add_comment(pin.id, None, sample_user.id, "Great pin!")
+    comment = await comment_svc.add_comment(pin.id, None, sample_user.id, "Great pin!")
     assert comment.comment == "Great pin!"
     assert comment.user_id == sample_user.id
     assert comment.pin_id == pin.id
 
 
 @pytest.mark.asyncio
-async def test_add_comment_toxic(pin_svc: PinService, sample_user):
+async def test_add_comment_toxic(pin_svc: PinService, sample_user, comment_svc):
     pin = await pin_svc.create_pin(
         mock_image_file(), sample_user, PinCreate(title="Comment Test")
     )
     with pytest.raises(HTTPException) as excinfo:
-        await pin_svc.add_comment(pin.id, None, sample_user.id, "You are stupid")
+        await comment_svc.add_comment(pin.id, None, sample_user.id, "You are stupid")
     assert excinfo.value.status_code == 400
-    comments = await pin_svc.get_comments(pin.id)
+    comments = await comment_svc.get_comments(pin.id)
     assert len(comments) == 0
 
 
 @pytest.mark.asyncio
-async def test_add_comment_pin_not_found(pin_svc: PinService, sample_user):
+async def test_add_comment_pin_not_found(pin_svc: PinService, sample_user, comment_svc):
     with pytest.raises(HTTPException) as excinfo:
-        await pin_svc.add_comment(uuid.uuid4(), None, sample_user.id, "Comment")
+        await comment_svc.add_comment(uuid.uuid4(), None, sample_user.id, "Comment")
     assert excinfo.value.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_get_comments(pin_svc: PinService, sample_user):
+async def test_get_comments(pin_svc: PinService, sample_user, comment_svc):
     pin = await pin_svc.create_pin(
         mock_image_file(), sample_user, PinCreate(title="Comment Test")
     )
-    await pin_svc.add_comment(pin.id, None, sample_user.id, "Great pin!")
-    comments = await pin_svc.get_comments(pin.id)
+    await comment_svc.add_comment(pin.id, None, sample_user.id, "Great pin!")
+    comments = await comment_svc.get_comments(pin.id)
     assert len(comments) == 1
     assert comments[0].comment == "Great pin!"
     assert comments[0].user.id == sample_user.id
 
 
 @pytest.mark.asyncio
-async def test_get_comment_by_id(pin_svc: PinService, sample_user):
+async def test_get_comment_by_id(pin_svc: PinService, sample_user, comment_svc):
     pin = await pin_svc.create_pin(
         mock_image_file(), sample_user, PinCreate(title="Comment Test")
     )
-    comment = await pin_svc.add_comment(pin.id, None, sample_user.id, "Great pin!")
-    retrieved_comment = await pin_svc.get_comment_by_id(comment.id)
+    comment = await comment_svc.add_comment(pin.id, None, sample_user.id, "Great pin!")
+    retrieved_comment = await comment_svc.get_comment_by_id(comment.id)
     assert retrieved_comment.comment == "Great pin!"
     assert retrieved_comment.user.id == sample_user.id
 
 
 @pytest.mark.asyncio
-async def test_get_comment_by_id_not_found(pin_svc: PinService, sample_user):
+async def test_get_comment_by_id_not_found(
+    pin_svc: PinService, sample_user, comment_svc
+):
     with pytest.raises(HTTPException) as excinfo:
-        await pin_svc.get_comment_by_id(uuid.uuid4())
+        await comment_svc.get_comment_by_id(uuid.uuid4())
     assert excinfo.value.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_delete_comment(pin_svc: PinService, sample_user):
+async def test_delete_comment(pin_svc: PinService, sample_user, comment_svc):
     pin = await pin_svc.create_pin(
         mock_image_file(), sample_user, PinCreate(title="Comment Test")
     )
-    comment = await pin_svc.add_comment(pin.id, None, sample_user.id, "Great pin!")
-    await pin_svc.delete_comment(pin.id, comment.id, sample_user)
-    comments = await pin_svc.get_comments(pin.id)
+    comment = await comment_svc.add_comment(pin.id, None, sample_user.id, "Great pin!")
+    await comment_svc.delete_comment(pin.id, comment.id, sample_user)
+    comments = await comment_svc.get_comments(pin.id)
     assert len(comments) == 0
 
 
 @pytest.mark.asyncio
-async def test_delete_comment_not_owner(pin_svc: PinService, sample_user, another_user):
+async def test_delete_comment_not_owner(
+    pin_svc: PinService, sample_user, another_user, comment_svc
+):
     pin = await pin_svc.create_pin(
         mock_image_file(), sample_user, PinCreate(title="Comment Test")
     )
-    comment = await pin_svc.add_comment(pin.id, None, sample_user.id, "Great pin!")
+    comment = await comment_svc.add_comment(pin.id, None, sample_user.id, "Great pin!")
     with pytest.raises(HTTPException) as excinfo:
-        await pin_svc.delete_comment(pin.id, comment.id, another_user)
+        await comment_svc.delete_comment(pin.id, comment.id, another_user)
     assert excinfo.value.status_code == 403
 
 
 @pytest.mark.asyncio
-async def test_delete_comment_not_found(pin_svc: PinService, sample_user):
+async def test_delete_comment_not_found(pin_svc: PinService, sample_user, comment_svc):
     with pytest.raises(HTTPException) as excinfo:
-        await pin_svc.delete_comment(uuid.uuid4(), uuid.uuid4(), sample_user)
+        await comment_svc.delete_comment(uuid.uuid4(), uuid.uuid4(), sample_user)
     assert excinfo.value.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_update_comment(pin_svc: PinService, sample_user):
+async def test_update_comment(pin_svc: PinService, sample_user, comment_svc):
     pin = await pin_svc.create_pin(
         mock_image_file(), sample_user, PinCreate(title="Comment Test")
     )
-    comment = await pin_svc.add_comment(pin.id, None, sample_user.id, "Great pin!")
-    updated_comment = await pin_svc.update_comment(
+    comment = await comment_svc.add_comment(pin.id, None, sample_user.id, "Great pin!")
+    updated_comment = await comment_svc.update_comment(
         comment.id, sample_user.id, "Great pin! Updated"
     )
     assert updated_comment.comment == "Great pin! Updated"
@@ -447,78 +454,88 @@ async def test_update_comment(pin_svc: PinService, sample_user):
 
 
 @pytest.mark.asyncio
-async def test_update_comment_not_owner(pin_svc: PinService, sample_user, another_user):
+async def test_update_comment_not_owner(
+    pin_svc: PinService, sample_user, another_user, comment_svc
+):
     pin = await pin_svc.create_pin(
         mock_image_file(), sample_user, PinCreate(title="Comment Test")
     )
-    comment = await pin_svc.add_comment(pin.id, None, sample_user.id, "Great pin!")
+    comment = await comment_svc.add_comment(pin.id, None, sample_user.id, "Great pin!")
     with pytest.raises(HTTPException) as excinfo:
-        await pin_svc.update_comment(comment.id, another_user.id, "Great pin! Updated")
+        await comment_svc.update_comment(
+            comment.id, another_user.id, "Great pin! Updated"
+        )
     assert excinfo.value.status_code == 403
 
 
 @pytest.mark.asyncio
-async def test_update_comment_not_found(pin_svc: PinService, sample_user):
+async def test_update_comment_not_found(pin_svc: PinService, sample_user, comment_svc):
     with pytest.raises(HTTPException) as excinfo:
-        await pin_svc.update_comment(uuid.uuid4(), sample_user.id, "Great pin! Updated")
+        await comment_svc.update_comment(
+            uuid.uuid4(), sample_user.id, "Great pin! Updated"
+        )
     assert excinfo.value.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_comment_like(pin_svc: PinService, sample_user):
+async def test_comment_like(pin_svc: PinService, sample_user, comment_svc):
     pin = await pin_svc.create_pin(
         mock_image_file(), sample_user, PinCreate(title="Comment Test")
     )
-    comment = await pin_svc.add_comment(pin.id, None, sample_user.id, "Great pin!")
-    await pin_svc.add_comment_like(pin.id, comment.id, sample_user.id)
-    liked_comment = await pin_svc.get_comment_by_id(comment.id)
+    comment = await comment_svc.add_comment(pin.id, None, sample_user.id, "Great pin!")
+    await comment_svc.add_comment_like(pin.id, comment.id, sample_user.id)
+    liked_comment = await comment_svc.get_comment_by_id(comment.id)
     assert liked_comment.likes_count == 1
 
 
 @pytest.mark.asyncio
-async def test_comment_like_not_found(pin_svc: PinService, sample_user):
+async def test_comment_like_not_found(pin_svc: PinService, sample_user, comment_svc):
     with pytest.raises(HTTPException) as excinfo:
-        await pin_svc.add_comment_like(uuid.uuid4(), uuid.uuid4(), sample_user.id)
+        await comment_svc.add_comment_like(uuid.uuid4(), uuid.uuid4(), sample_user.id)
     assert excinfo.value.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_comment_like_already_liked(pin_svc: PinService, sample_user):
+async def test_comment_like_already_liked(
+    pin_svc: PinService, sample_user, comment_svc
+):
     pin = await pin_svc.create_pin(
         mock_image_file(), sample_user, PinCreate(title="Comment Test")
     )
-    comment = await pin_svc.add_comment(pin.id, None, sample_user.id, "Great pin!")
-    await pin_svc.add_comment_like(pin.id, comment.id, sample_user.id)
+    comment = await comment_svc.add_comment(pin.id, None, sample_user.id, "Great pin!")
+    await comment_svc.add_comment_like(pin.id, comment.id, sample_user.id)
     with pytest.raises(HTTPException) as excinfo:
-        await pin_svc.add_comment_like(pin.id, comment.id, sample_user.id)
+        await comment_svc.add_comment_like(pin.id, comment.id, sample_user.id)
     assert excinfo.value.status_code == 409
 
 
 @pytest.mark.asyncio
-async def test_comment_unlike(pin_svc: PinService, sample_user):
+async def test_comment_unlike(pin_svc: PinService, sample_user, comment_svc):
     pin = await pin_svc.create_pin(
         mock_image_file(), sample_user, PinCreate(title="Comment Test")
     )
-    comment = await pin_svc.add_comment(pin.id, None, sample_user.id, "Great pin!")
-    await pin_svc.add_comment_like(pin.id, comment.id, sample_user.id)
-    await pin_svc.delete_comment_like(pin.id, comment.id, sample_user.id)
-    unliked_comment = await pin_svc.get_comment_by_id(comment.id)
+    comment = await comment_svc.add_comment(pin.id, None, sample_user.id, "Great pin!")
+    await comment_svc.add_comment_like(pin.id, comment.id, sample_user.id)
+    await comment_svc.delete_comment_like(pin.id, comment.id, sample_user.id)
+    unliked_comment = await comment_svc.get_comment_by_id(comment.id)
     assert unliked_comment.likes_count == 0
 
 
 @pytest.mark.asyncio
-async def test_comment_unlike_not_found(pin_svc: PinService, sample_user):
+async def test_comment_unlike_not_found(pin_svc: PinService, sample_user, comment_svc):
     with pytest.raises(HTTPException) as excinfo:
-        await pin_svc.delete_comment_like(uuid.uuid4(), uuid.uuid4(), sample_user.id)
+        await comment_svc.delete_comment_like(
+            uuid.uuid4(), uuid.uuid4(), sample_user.id
+        )
     assert excinfo.value.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_comment_unlike_not_liked(pin_svc: PinService, sample_user):
+async def test_comment_unlike_not_liked(pin_svc: PinService, sample_user, comment_svc):
     pin = await pin_svc.create_pin(
         mock_image_file(), sample_user, PinCreate(title="Comment Test")
     )
-    comment = await pin_svc.add_comment(pin.id, None, sample_user.id, "Great pin!")
+    comment = await comment_svc.add_comment(pin.id, None, sample_user.id, "Great pin!")
     with pytest.raises(HTTPException) as excinfo:
-        await pin_svc.delete_comment_like(pin.id, comment.id, sample_user.id)
+        await comment_svc.delete_comment_like(pin.id, comment.id, sample_user.id)
     assert excinfo.value.status_code == 404

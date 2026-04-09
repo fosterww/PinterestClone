@@ -59,5 +59,7 @@ class Settings(BaseSettings):
     clarifai_user_id: str = ""
     clarifai_app_id: str = ""
 
+    gemini_api_key: str = ""
+
 
 settings = Settings()
