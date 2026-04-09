@@ -130,6 +130,7 @@ async def like_pin_handler(
     current_user: UserModel = Depends(get_current_user),
     service: PinService = Depends(get_pin_service),
 ) -> PinListResponse:
+    """Like a pin."""
     return await service.like_pin(pin_id, current_user.id)
 
 
@@ -141,6 +142,7 @@ async def unlike_pin_handler(
     current_user: UserModel = Depends(get_current_user),
     service: PinService = Depends(get_pin_service),
 ) -> PinListResponse:
+    """Unlike a pin."""
     return await service.unlike_pin(pin_id, current_user.id)
 
 
@@ -153,6 +155,7 @@ async def patch_pin(
     current_user: UserModel = Depends(get_current_user),
     service: PinService = Depends(get_pin_service),
 ) -> PinListResponse:
+    """Update a pin."""
     pin = await service.get_pin_by_id(pin_id)
     return await service.update_pin(pin, data, current_user)
 
@@ -165,6 +168,7 @@ async def remove_pin(
     current_user: UserModel = Depends(get_current_user),
     service: PinService = Depends(get_pin_service),
 ):
+    """Delete a pin."""
     pin = await service.get_pin_by_id(pin_id)
     await service.delete_pin(pin, current_user)
     delete_image_task.delay(str(pin_id))
@@ -177,6 +181,7 @@ async def get_comments(
     pin_id: uuid.UUID,
     comment_service: CommentService = Depends(get_comment_service),
 ) -> List[PinCommentResponse]:
+    """Get comments for a pin."""
     return await comment_service.get_comments(pin_id)
 
 
@@ -189,6 +194,7 @@ async def add_comment(
     current_user: UserModel = Depends(get_current_user),
     comment_service: CommentService = Depends(get_comment_service),
 ) -> PinCommentResponse:
+    """Add a comment to a pin."""
     return await comment_service.add_comment(
         pin_id, data.parent_id, current_user.id, data.comment
     )
@@ -203,6 +209,7 @@ async def like_comment(
     current_user: UserModel = Depends(get_current_user),
     comment_service: CommentService = Depends(get_comment_service),
 ) -> PinCommentResponse:
+    """Like a comment."""
     return await comment_service.add_comment_like(pin_id, comment_id, current_user.id)
 
 
@@ -215,6 +222,7 @@ async def unlike_comment(
     current_user: UserModel = Depends(get_current_user),
     comment_service: CommentService = Depends(get_comment_service),
 ) -> PinCommentResponse:
+    """Unlike a comment."""
     return await comment_service.delete_comment_like(
         pin_id, comment_id, current_user.id
     )
@@ -229,6 +237,7 @@ async def patch_comment(
     current_user: UserModel = Depends(get_current_user),
     comment_service: CommentService = Depends(get_comment_service),
 ) -> PinCommentResponse:
+    """Update a comment."""
     return await comment_service.update_comment(comment_id, current_user.id, text)
 
 
@@ -243,6 +252,7 @@ async def remove_comment(
     current_user: UserModel = Depends(get_current_user),
     comment_service: CommentService = Depends(get_comment_service),
 ) -> None:
+    """Delete a comment."""
     await comment_service.delete_comment(pin_id, comment_id, current_user)
 
 
