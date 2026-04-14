@@ -1,6 +1,7 @@
 import uuid
 import base64
 import io
+import asyncio
 from typing import List
 
 from PIL import Image, UnidentifiedImageError
@@ -103,9 +104,15 @@ class PinService:
             img.save(thumb_io, format="JPEG")
             base64_thumb = base64.b64encode(thumb_io.getvalue()).decode("utf-8")
 
-        if data.tags == []:
-            data.tags = self.gemini_service.generate_tags(
-                original_content, data.title, data.description
+        if data.tags:
+            data.tags = [t.strip() for t in data.tags if t.strip()]
+
+        if not data.tags:
+            data.tags = await asyncio.to_thread(
+                self.gemini_service.generate_tags,
+                original_content,
+                data.title,
+                data.description,
             )
         tags = await self.tag_service.get_or_create_tag(data.tags)
         pin = await self.repo.create_pin(owner, data, image_url, tags)
@@ -129,23 +136,19 @@ class PinService:
         await self.repo.delete_pin(pin)
 
     async def like_pin(self, pin_id: uuid.UUID, user_id: uuid.UUID) -> PinModel:
-        like = await self.repo.get_like(pin_id, user_id)
-        pin = await self.repo.get_pin_by_id(pin_id)
-        if like:
-            raise ConflictError("Like already exists")
-        await self.repo.add_like(pin_id, user_id)
-        if hasattr(pin, "likes_count"):
-            pin.likes_count += 1
-            await self.db.flush()
-        return pin
+        try:
+            await self.repo.add_like(pin_id, user_id)
+            await self.db.commit()
+        except ConflictError:
+            await self.db.rollback()
+            raise ConflictError("Already liked")
+        return await self.repo.get_pin_by_id(pin_id)
 
     async def unlike_pin(self, pin_id: uuid.UUID, user_id: uuid.UUID) -> PinModel:
-        like = await self.repo.get_like(pin_id, user_id)
-        pin = await self.repo.get_pin_by_id(pin_id)
-        if not like:
+        try:
+            await self.repo.delete_like(pin_id, user_id)
+            await self.db.commit()
+        except NotFoundError:
+            await self.db.rollback()
             raise NotFoundError("Like not found")
-        await self.repo.delete_like(like)
-        if hasattr(pin, "likes_count") and pin.likes_count > 0:
-            pin.likes_count -= 1
-            await self.db.flush()
-        return pin
+        return await self.repo.get_pin_by_id(pin_id)

@@ -1,11 +1,11 @@
 import uuid
 from typing import List
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from core.exception import AppError, ConflictError
+from core.exception import AppError, ConflictError, NotFoundError
 from core.logger import logger
 from boards.models import (
     PinModel,
@@ -130,53 +130,45 @@ class PinRepository:
             logger.error(f"Database error while fetching user pins: {username}")
             raise AppError()
 
-    async def get_like(
-        self, pin_id: uuid.UUID, user_id: uuid.UUID
-    ) -> PinLikeModel | None:
-        try:
-            result = await self.db.execute(
-                select(PinLikeModel)
-                .where(PinLikeModel.pin_id == pin_id)
-                .where(PinLikeModel.user_id == user_id)
-                .options(
-                    selectinload(PinLikeModel.user),
-                    selectinload(PinLikeModel.pin).options(selectinload(PinModel.tags)),
-                )
-            )
-            return result.scalar_one_or_none()
-        except SQLAlchemyError:
-            logger.error(f"Database error while fetching pin like: {pin_id}, {user_id}")
-            raise AppError()
-
-    async def add_like(self, pin_id: uuid.UUID, user_id: uuid.UUID) -> PinLikeModel:
+    async def add_like(self, pin_id: uuid.UUID, user_id: uuid.UUID):
         try:
             like = PinLikeModel(pin_id=pin_id, user_id=user_id)
             self.db.add(like)
-            await self.db.flush()
-            result = await self.db.execute(
-                select(PinLikeModel)
-                .where(PinLikeModel.pin_id == pin_id)
-                .where(PinLikeModel.user_id == user_id)
-                .options(
-                    selectinload(PinLikeModel.user),
-                    selectinload(PinLikeModel.pin).options(selectinload(PinModel.tags)),
-                )
+            await self.db.execute(
+                update(PinModel)
+                .where(PinModel.id == pin_id)
+                .values(likes_count=PinModel.likes_count + 1)
             )
-            return result.scalar_one()
+            await self.db.flush()
+        except IntegrityError:
+            raise ConflictError("Like already exists")
         except SQLAlchemyError:
             await self.db.rollback()
             logger.error(f"Database error while adding pin like: {pin_id}, {user_id}")
             raise AppError()
 
-    async def delete_like(self, pin_like: PinLikeModel) -> None:
+    async def delete_like(self, pin_id: uuid.UUID, user_id: uuid.UUID) -> None:
         try:
-            await self.db.delete(pin_like)
+            like = await self.db.execute(
+                select(PinLikeModel)
+                .where(PinLikeModel.pin_id == pin_id)
+                .where(PinLikeModel.user_id == user_id)
+            )
+            like_obj = like.scalar_one_or_none()
+            if not like_obj:
+                raise NotFoundError("Like not found")
+            await self.db.delete(like_obj)
+            await self.db.execute(
+                update(PinModel)
+                .where(PinModel.id == pin_id)
+                .values(likes_count=PinModel.likes_count - 1)
+            )
             await self.db.flush()
+        except NotFoundError:
+            raise
         except SQLAlchemyError:
             await self.db.rollback()
-            logger.error(
-                f"Database error while deleting pin like: {pin_like.pin_id}, {pin_like.user_id}"
-            )
+            logger.error(f"Database error while deleting pin like: {pin_id}, {user_id}")
             raise AppError()
 
     async def update_pin(self, pin: PinModel, data: dict) -> PinModel:

@@ -55,11 +55,11 @@ class Settings(BaseSettings):
 
     rabbitmq_url: str = "amqp://pinterest:pinterest@localhost:5672//"
 
-    clarifai_api_key: str = ""
-    clarifai_user_id: str = ""
-    clarifai_app_id: str = ""
+    clarifai_api_key: str
+    clarifai_user_id: str
+    clarifai_app_id: str
 
-    gemini_api_key: str = ""
+    gemini_api_key: str
 
 
 settings = Settings()

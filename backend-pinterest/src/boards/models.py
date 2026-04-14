@@ -5,7 +5,7 @@ from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import String, func, ForeignKey, Table, Column
+from sqlalchemy import String, func, ForeignKey, Table, Column, UniqueConstraint
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy import UUID as SAUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -117,6 +117,8 @@ class PinLikeModel(Base):
         server_default=func.now(), onupdate=func.now()
     )
 
+    __table_args__ = (UniqueConstraint("pin_id", "user_id", name="uq_pin_user_like"),)
+
     pin: Mapped["PinModel"] = relationship("PinModel", back_populates="likes")
     user: Mapped["UserModel"] = relationship("UserModel", back_populates="likes")
 
@@ -169,6 +171,10 @@ class PinCommentLikeModel(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("comment_id", "user_id", name="uq_comment_user_like"),
     )
 
     comment_obj: Mapped["PinCommentModel"] = relationship(

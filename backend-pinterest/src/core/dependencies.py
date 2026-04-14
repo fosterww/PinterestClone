@@ -56,7 +56,7 @@ def get_tag_service(db: AsyncSession = Depends(get_db)) -> TagService:
 
 
 def get_gemini_service() -> GeminiService:
-    return GeminiService(settings.gemini_api_key)
+    return GeminiService()
 
 
 @lru_cache()

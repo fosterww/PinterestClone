@@ -38,7 +38,7 @@ class PinCommentResponse(PinCommentCreate):
 
 
 class PinCreate(PinBase):
-    tags: list[str] = []
+    tags: list[str] | None = None
 
 
 class PinUpdate(BaseModel):

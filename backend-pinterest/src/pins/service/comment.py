@@ -8,7 +8,7 @@ from pins.repository.pin import PinRepository
 from pins.repository.comment import CommentRepository
 from pins.schemas import PinCommentResponse
 from boards.models import PinCommentModel
-from core.exception import NotFoundError, ForbiddenError, BadRequestError, ConflictError
+from core.exception import NotFoundError, ForbiddenError, BadRequestError
 from core.infra.comment_filter import CommentFilter
 
 
@@ -134,11 +134,7 @@ class CommentService:
         if not comment:
             raise NotFoundError("Comment not found")
 
-        existing_like = await self.comment_repo.get_comment_like(comment_id, user_id)
-        if existing_like:
-            raise ConflictError("Comment already liked")
-
-        updated_comment = await self.comment_repo.add_comment_like(comment, user_id)
+        updated_comment = await self.comment_repo.add_comment_like(comment_id, user_id)
         return updated_comment
 
     async def delete_comment_like(
@@ -155,5 +151,5 @@ class CommentService:
         if not like:
             raise NotFoundError("Comment like not found")
 
-        updated_comment = await self.comment_repo.delete_comment_like(comment, like)
+        updated_comment = await self.comment_repo.delete_comment_like(like)
         return updated_comment
