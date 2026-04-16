@@ -155,7 +155,7 @@ async def test_get_related_pins(client: AsyncClient, fake_image: bytes):
             new_callable=AsyncMock,
         ) as mock_clarifai,
         patch(
-            "src.core.infra.cache.CacheService.get_pattern", new_callable=AsyncMock
+            "src.core.infra.cache.CacheService.get", new_callable=AsyncMock
         ) as mock_cache_get,
         patch("src.core.infra.cache.CacheService.set", new_callable=AsyncMock),
     ):

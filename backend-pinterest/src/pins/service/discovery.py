@@ -1,3 +1,4 @@
+import json
 import uuid
 from typing import List
 from core.logger import logger
@@ -21,24 +22,25 @@ class DiscoveryService:
 
     async def _get_from_cache(self, pin_id: uuid.UUID) -> List[PinListResponse] | None:
         try:
-            data = await self.cache.get_pattern(f"related_pins:{pin_id}:*")
-            if data:
-                return [
-                    PinListResponse.model_validate_json(item)
-                    for item in data
-                    if item is not None
-                ]
+            cache_key = f"related_pins:{pin_id}"
+            payload = await self.cache.get(cache_key)
+            if not payload:
+                return None
+
+            raw_items = json.loads(payload)
+            return [PinListResponse.model_validate(item) for item in raw_items]
         except Exception as e:
             logger.warning(f"Cache read error: {e}")
             return None
 
     async def _set_to_cache(self, pin_id: uuid.UUID, pins: list[PinModel]) -> None:
         try:
-            for i, pin in enumerate(pins):
-                pin_json = PinListResponse.model_validate(pin)
-                await self.cache.set(
-                    f"related_pins:{pin_id}:{i}", pin_json.model_dump_json(), 600
-                )
+            cache_key = f"related_pins:{pin_id}"
+            payload = [
+                PinListResponse.model_validate(pin).model_dump(mode="json")
+                for pin in pins
+            ]
+            await self.cache.set(cache_key, json.dumps(payload), 600)
         except Exception as e:
             logger.error(f"Cache write error: {e}")
 

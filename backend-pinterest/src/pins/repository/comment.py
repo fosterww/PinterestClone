@@ -20,7 +20,8 @@ class CommentRepository:
             result = await self.db.execute(
                 select(PinCommentModel)
                 .where(
-                    PinCommentModel.pin_id == pin_id, PinCommentModel.parent_id is None
+                    PinCommentModel.pin_id == pin_id,
+                    PinCommentModel.parent_id.is_(None),
                 )
                 .options(selectinload(PinCommentModel.user))
             )

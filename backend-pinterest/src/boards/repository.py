@@ -1,14 +1,16 @@
 import uuid
 from typing import List
 
-from sqlalchemy import select
+from sqlalchemy import select, delete, insert as sa_insert
 from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from core.exception import AppError, ConflictError
 from core.logger import logger
 
-from boards.models import BoardModel, PinModel, PinCommentModel
+from boards.models import BoardModel, PinModel, PinCommentModel, board_pin_association
 from users.models import UserModel
 from boards.schemas import BoardCreate, BoardUpdate
 
@@ -91,15 +93,23 @@ class BoardRepository:
 
     async def add_pin_to_board(self, board: BoardModel, pin: PinModel) -> None:
         try:
-            result = await self.db.execute(
-                select(BoardModel)
-                .where(BoardModel.id == board.id)
-                .options(selectinload(BoardModel.pins))
-            )
-            fresh_board = result.scalar_one()
-            if pin not in fresh_board.pins:
-                fresh_board.pins.append(pin)
+            values = {"board_id": board.id, "pin_id": pin.id}
+            dialect_name = self.db.get_bind().dialect.name
+            if dialect_name == "postgresql":
+                stmt = pg_insert(board_pin_association).values(**values)
+                stmt = stmt.on_conflict_do_nothing(
+                    index_elements=["board_id", "pin_id"]
+                )
+            elif dialect_name == "sqlite":
+                stmt = sqlite_insert(board_pin_association).values(**values)
+                stmt = stmt.on_conflict_do_nothing(
+                    index_elements=["board_id", "pin_id"]
+                )
+            else:
+                stmt = sa_insert(board_pin_association).values(**values)
+            await self.db.execute(stmt)
             await self.db.flush()
+            self.db.expire(board, ["pins"])
         except IntegrityError:
             await self.db.rollback()
             raise ConflictError("Pin is already on this board")
@@ -112,15 +122,13 @@ class BoardRepository:
 
     async def remove_pin_from_board(self, board: BoardModel, pin: PinModel) -> None:
         try:
-            result = await self.db.execute(
-                select(BoardModel)
-                .where(BoardModel.id == board.id)
-                .options(selectinload(BoardModel.pins))
+            stmt = delete(board_pin_association).where(
+                board_pin_association.c.board_id == board.id,
+                board_pin_association.c.pin_id == pin.id,
             )
-            fresh_board = result.scalar_one()
-            if pin in fresh_board.pins:
-                fresh_board.pins.remove(pin)
+            await self.db.execute(stmt)
             await self.db.flush()
+            self.db.expire(board, ["pins"])
         except SQLAlchemyError:
             await self.db.rollback()
             logger.error(

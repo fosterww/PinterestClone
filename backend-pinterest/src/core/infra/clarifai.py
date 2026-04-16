@@ -41,12 +41,8 @@ class ClarifaiService:
             logger.info(f"Successfully indexed pin {pin_id}")
         except Exception as e:
             logger.error(f"Failed to index image in Clarifai: {e}")
+            raise
 
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=4, max=10),
-        reraise=True,
-    )
     async def search_similar_images_by_id(self, pin_id: str) -> List[str]:
         url = f"{self.base_url}/annotations/searches"
         payload = {
@@ -86,6 +82,7 @@ class ClarifaiService:
             logger.info(f"Successfully deleted pin {pin_id}")
         except Exception as e:
             logger.error(f"Failed to delete image in Clarifai: {e}")
+            raise
 
 
 async def get_clarifai_service() -> ClarifaiService:

@@ -69,6 +69,6 @@ async def test_api_personalized_feed(client: AsyncClient, fake_image: bytes):
     assert len(pins) == 3
     titles = [p["title"] for p in pins]
 
-    assert titles[0] == "Mountain"
+    assert titles[0] == "Forest"
     assert titles[1] == "City"
-    assert titles[2] == "Forest"
+    assert titles[2] == "Mountain"

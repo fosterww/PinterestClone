@@ -102,8 +102,8 @@ def mock_cache_service():
             self.redis.ltrim = AsyncMock()
             self.redis.lrange = AsyncMock(return_value=[])
 
-        async def get_pattern(self, pattern):
-            return []
+        async def get(self, key):
+            return None
 
         async def set(self, key, value, ttl=None):
             pass

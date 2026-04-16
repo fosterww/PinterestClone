@@ -1,10 +1,9 @@
 from functools import lru_cache
-from fastapi import Depends
+from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from redis.asyncio import Redis
 
 from database import get_db
-from core.config import settings
 from core.security.session import SessionService
 from core.infra.cache import CacheService
 from core.infra.s3 import S3Service
@@ -64,21 +63,18 @@ def get_comment_filter() -> CommentFilter:
     return CommentFilter()
 
 
-async def get_session_service() -> SessionService:
-    redis = await Redis.from_url(
-        settings.redis_url,
-        decode_responses=True,
-        socket_timeout=settings.redis_socket_timeout,
-    )
+def get_redis(request: Request) -> Redis:
+    redis = getattr(request.app.state, "redis", None)
+    if redis is None:
+        raise RuntimeError("Redis client is not initialized in app state")
+    return redis
+
+
+def get_session_service(redis: Redis = Depends(get_redis)) -> SessionService:
     return SessionService(redis)
 
 
-async def get_cache_service() -> CacheService:
-    redis = await Redis.from_url(
-        settings.redis_url,
-        decode_responses=True,
-        socket_timeout=settings.redis_socket_timeout,
-    )
+def get_cache_service(redis: Redis = Depends(get_redis)) -> CacheService:
     return CacheService(redis)
 
 

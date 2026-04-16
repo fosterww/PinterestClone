@@ -1,6 +1,7 @@
 import uuid
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,22 +18,22 @@ class TagService:
         if not tag_names:
             return []
         try:
-            query = select(TagModel).where(TagModel.name.in_(tag_names))
-            result = await self.db.execute(query)
-            existing_tags = result.scalars().all()
-            existing_names = {tag.name for tag in existing_tags}
+            unique_names = list(dict.fromkeys(tag_names))
+            query = (
+                insert(TagModel)
+                .values([{"id": uuid.uuid4(), "name": name} for name in unique_names])
+                .on_conflict_do_nothing(index_elements=[TagModel.name])
+            )
+            await self.db.execute(query)
 
-            new_tags = [
-                TagModel(id=uuid.uuid4(), name=name)
-                for name in tag_names
-                if name not in existing_names
-            ]
+            result = await self.db.execute(
+                select(TagModel).where(TagModel.name.in_(unique_names))
+            )
+            tags = result.scalars().all()
 
-            if new_tags:
-                self.db.add_all(new_tags)
-                await self.db.flush()
+            tags_by_name = {tag.name: tag for tag in tags}
+            return [tags_by_name[name] for name in unique_names if name in tags_by_name]
 
-            return existing_tags + new_tags
         except SQLAlchemyError:
             logger.error(f"Database error while processing tags: {tag_names}")
             raise AppError()
