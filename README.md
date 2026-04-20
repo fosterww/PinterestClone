@@ -1,145 +1,251 @@
-# Pinterest Clone Backend
+# Pinterest Clone Monorepo
 
-A robust, asynchronous backend for a Pinterest-like application, built with **FastAPI**. It features a modern Python stack and integrates with several services, including PostgreSQL, Redis, RabbitMQ, MinIO, and Celery, to provide scalable data storage, caching, media handling, and background task processing.
+Pinterest-style application split into:
 
-## Key Features
+- `backend-pinterest`: FastAPI API, async PostgreSQL access, Redis rate limiting/cache, RabbitMQ + Celery workers, MinIO media storage, and AI-assisted discovery/moderation services.
+- `frontend-pinterest`: React + TypeScript + Vite client for authentication, feed browsing, pin creation, filtering, and pin detail views.
 
-* **FastAPI** based robust API structure (async processing).
-* **PostgreSQL + SQLAlchemy + asyncpg** for relational data mapping and migrations (Alembic).
-* **MinIO (AWS S3 Compatible)** integration for media/image uploads and storage via `aioboto3`.
-* **Redis** caching and rate limiting (using `slowapi`).
-* **RabbitMQ & Celery** for executing background jobs and scheduled tasks.
-* **Authentication:** JWT, password hashing, and **Google OAuth 2.0** integration.
-* **Machine Learning & AI Integration:**
-  * **Gemini AI** for automated image tagging.
-  * **Toxic-BERT (Transformers/PyTorch)** for AI-powered comment moderation.
-  * **Clarifai** for visual search and related pins.
-* **Personalized Discovery** service leveraging AI and tag-based tracking.
+## Current Architecture
 
-## Tech Stack
+### Frontend
 
-- **Framework:** FastAPI, Uvicorn
-- **Language:** Python 3.12+ (managed with `uv`)
-- **Database:** PostgreSQL (PostgreSQL 16)
-- **Caching & Rate Limiting:** Redis
-- **Message Broker:** RabbitMQ
-- **Background Tasks:** Celery
-- **Object Storage:** MinIO
-- **ORM & Migrations:** SQLAlchemy 2.0+, Alembic
-- **Authentication:** PyJWT, passlib, Google Auth
-- **AI & ML:** Google GenAI (Gemini), Transformers (Toxic-BERT), Clarifai, PyTorch
-- **Testing:** Pytest, pytest-asyncio
-- **Linter & Formatter:** Ruff
+- React 19 + TypeScript + Vite
+- TanStack Query for server state
+- Axios client pointed at `/api/v2`
+- Local token storage with logout on `401`
+- Google OAuth client support
+
+The frontend runs on `http://localhost:5173` in development and proxies `/api` requests to the backend at `http://localhost:8000`.
+
+### Backend
+
+- FastAPI app with routers mounted under `/api/v2`
+- Async SQLAlchemy + `asyncpg` for PostgreSQL access
+- Alembic migrations
+- Redis-backed rate limiting via `slowapi`
+- JWT auth with refresh tokens and server-side session handling
+- RabbitMQ + Celery for background jobs
+- MinIO for image storage
+- AI integrations:
+  - Gemini for automatic image tag generation
+  - Toxic-BERT for comment moderation
+  - Clarifai for image indexing and related-pin search
+
+### Feature Modules
+
+Backend code is organized by domain:
+
+- `auth`: register, login, Google login, refresh, logout
+- `users`: current user, public profiles, followers/following, follow/unfollow
+- `boards`: CRUD-style board flows and pin-to-board management
+- `pins`: create/list/detail/update/delete, likes, comments, related pins
+- `pins.service.discovery`: personalized feed and tag-visit tracking
+- `core`: config, dependencies, security, infra clients, exceptions, logging
+
+### Request / Data Flow
+
+1. The React app calls `/api/v2/...` through the Vite proxy.
+2. FastAPI routers delegate work to service and repository layers.
+3. PostgreSQL stores users, boards, pins, comments, tags, follows, and sessions.
+4. Images are stored in MinIO and can be indexed in Clarifai.
+5. Redis is used for rate limiting and app-level caching concerns.
+6. Celery workers handle asynchronous tasks such as Clarifai image indexing and deletion.
+7. Discovery features combine follow relationships, recent activity, visited tags, and related-image search.
+
+## Repository Layout
+
+```text
+.
+|-- backend-pinterest/
+|   |-- src/
+|   |   |-- auth/
+|   |   |-- boards/
+|   |   |-- core/
+|   |   |-- pins/
+|   |   |-- tags/
+|   |   |-- users/
+|   |   |-- database.py
+|   |   `-- main.py
+|   |-- migrations/
+|   |-- tests/
+|   |-- docker-compose.yaml
+|   `-- pyproject.toml
+|-- frontend-pinterest/
+|   |-- src/
+|   |   |-- api/
+|   |   |-- components/
+|   |   |-- context/
+|   |   `-- types/
+|   |-- public/
+|   |-- package.json
+|   `-- vite.config.ts
+`-- README.md
+```
 
 ## Prerequisites
 
-To run this project you will need:
-- [Docker](https://docs.docker.com/get-docker/) & [Docker Compose](https://docs.docker.com/compose/install/)
-- (Optional) [uv](https://github.com/astral-sh/uv) or Python 3.12+ if running locally outside of Docker.
+Required:
 
-## Running with Docker (Recommended)
+- Python 3.12+
+- Node.js 20+
+- Docker Desktop / Docker Engine with Compose
 
-The easiest way to get the entire stack running is via `docker-compose`.
+For local development without Dockerized app processes, you still need the infrastructure services:
 
-1. **Clone the repository and jump into the backend directory:**
-```bash
-cd backend-pinterest
-```
+- PostgreSQL
+- Redis
+- RabbitMQ
+- MinIO
 
-2. **Configure Environment Variables:**
-Copy the example environment variables or create a `.env` file based on `.env.example` in the root of the backend directory.
-```bash
-# Example essential variables:
+Optional third-party credentials unlock the AI-assisted features:
+
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `GEMINI_API_KEY`
+- `CLARIFAI_API_KEY`
+- `CLARIFAI_USER_ID`
+- `CLARIFAI_APP_ID`
+
+## Backend Setup
+
+From `backend-pinterest/`:
+
+### 1. Create environment variables
+
+This project loads backend settings from `.env`.
+
+Typical values:
+
+```env
 DB_USER=postgres
 DB_PASSWORD=secret
 DB_NAME=pinterest
+DB_HOST=localhost
+DB_PORT=5432
+
+JWT_SECRET_KEY=change-me-in-production
+
+S3_ENDPOINT_URL=http://localhost:9000
 S3_ACCESS_KEY_ID=minioadmin
 S3_SECRET_ACCESS_KEY=minioadmin
-S3_BUCKET_NAME=pinterest-images
+S3_BUCKET_NAME=pinterest
+S3_PUBLIC_BASE_URL=http://localhost:9000/pinterest
 
-# 3rd Party Integrations (Optional but recommended for full features):
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
-GEMINI_API_KEY=your_gemini_api_key
-CLARIFAI_API_KEY=your_clarifai_key
-CLARIFAI_USER_ID=your_clarifai_user_id
-CLARIFAI_APP_ID=your_clarifai_app_id
+REDIS_URL=redis://localhost:6379/0
+RABBITMQ_URL=amqp://pinterest:pinterest@localhost:5672//
+
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GEMINI_API_KEY=
+CLARIFAI_API_KEY=
+CLARIFAI_USER_ID=
+CLARIFAI_APP_ID=
 ```
 
-3. **Spin up the containers:**
-```bash
-docker compose up --build -d
-```
-This command starts:
-- The FastAPI application (`api`) accessible at http://localhost:8000
-- PostgreSQL Database (`db`) accessible at port 5432
-- MinIO Object Storage (`minio`) accessible at http://localhost:9000 (Console at 9001)
-- Redis (`redis`) accessible at port 6379 
-- RabbitMQ (`rabbitmq`) accessible at port 5672 (Management UI at 15672)
-- Celery worker & Celery beat
+### 2. Start infrastructure
 
-4. **Apply Database Migrations:**
-Ensure your database schema is up-to-date:
-```bash
-docker compose exec api alembic upgrade head
-```
-
-5. **Access the API:**
-* Interactive API Docs (Swagger): http://localhost:8000/docs
-* ReDoc UI: http://localhost:8000/redoc
-
-## Running Locally (Development)
-
-If you prefer to run the FastAPI app on your host machine while keeping databases in Docker:
-
-1. **Start infrastructure via Docker:**
 ```bash
 docker compose up -d db redis rabbitmq minio minio-init
 ```
 
-2. **Install dependencies using uv (or pip):**
+### 3. Install Python dependencies
+
 ```bash
-uv sync # or pip install -r pyproject.toml
+uv sync
 ```
 
-3. **Run Alembic Migrations:**
+### 4. Run migrations
+
 ```bash
-alembic upgrade head
+uv run alembic upgrade head
 ```
 
-4. **Start the API Server:**
+### 5. Start the API
+
 ```bash
-uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+uv run uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-## Project Structure
+API docs:
+
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
+
+## Backend With Docker
+
+If you want the backend services and workers containerized, from `backend-pinterest/`:
+
+```bash
+docker compose up --build -d
 ```
-backend-pinterest/
-├── alembic.ini             # Alembic migration config
-├── docker-compose.yaml     # Local Docker infrastructure setup
-├── Dockerfile              # App container image spec
-├── migrations/             # Alembic revision files
-├── pyproject.toml          # Project dependencies and configurations
-├── src/                    # Main application code
-│   ├── core/               # App configuration, security, dependencies
-│   ├── auth/               # Authentication features
-│   ├── users/              # User management features
-│   ├── boards/             # Board management features
-│   ├── pins/               # Pin management features
-│   ├── tags/               # Tagging features
-│   ├── database.py         # Database configuration
-│   └── main.py             # Application entry point
-└── tests/                  # Pytest test suite
+
+This compose file starts:
+
+- `db`
+- `minio`
+- `minio-init`
+- `redis`
+- `rabbitmq`
+- `celery`
+- `celery-beat`
+- `api`
+- `nginx`
+
+After startup:
+
+```bash
+docker compose exec api alembic upgrade head
 ```
+
+## Frontend Setup
+
+From `frontend-pinterest/`:
+
+### 1. Install dependencies
+
+```bash
+npm install
+```
+
+### 2. Start the development server
+
+```bash
+npm run dev
+```
+
+The Vite app runs on `http://localhost:5173` and proxies `/api` traffic to `http://localhost:8000`.
+
+If you use Google login in the UI, configure the frontend environment accordingly.
+
+## Main API Areas
+
+Current mounted routers:
+
+- `/api/v2/auth`
+- `/api/v2/users`
+- `/api/v2/pins`
+- `/api/v2/boards`
+
+Notable implemented flows:
+
+- Email/password registration and login
+- Google token login
+- Access-token refresh and logout
+- Create, browse, update, like, and delete pins
+- Pin comments with like/unlike flows
+- Related pin search
+- Personalized feed
+- User profiles, follow/unfollow, followers/following
+- User boards and board membership management
 
 ## Testing
 
-The project uses `pytest`. Make sure your `.env.test` is configured or mock values are supplied.
-To run tests locally:
+### Backend tests
+
+From `backend-pinterest/`:
+
 ```bash
-pytest
+uv run pytest
 ```
-To run tests inside Docker:
-```bash
-docker compose exec api pytest
-```
+
+The test suite includes API, service, and core/infrastructure coverage for auth, users, boards, pins, security, S3, Clarifai, and personalized feed behavior.
