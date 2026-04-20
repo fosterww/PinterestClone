@@ -9,14 +9,6 @@ from alembic import context
 
 from core.config import settings  # noqa: E402
 from database import Base  # noqa: E402
-from boards.models import (
-    BoardModel,
-    PinModel,
-    TagModel,
-    PinLikeModel,
-    PinCommentModel,
-    PinCommentLikeModel,
-)  # noqa: F401
 
 config = context.config
 
