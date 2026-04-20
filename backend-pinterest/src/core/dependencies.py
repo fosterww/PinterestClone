@@ -10,6 +10,7 @@ from core.infra.s3 import S3Service
 from core.infra.comment_filter import CommentFilter
 
 from users.repository import UserRepository
+from users.service import UserService
 from auth.repository import AuthRepository
 from boards.repository import BoardRepository
 
@@ -82,6 +83,13 @@ async def get_s3_service() -> S3Service:
     return S3Service()
 
 
+async def get_user_service(
+    db: AsyncSession = Depends(get_db),
+    repo: UserRepository = Depends(get_user_repository),
+) -> UserService:
+    return UserService(db, repo)
+
+
 def get_auth_service(
     db: AsyncSession = Depends(get_db),
     session_service: SessionService = Depends(get_session_service),
@@ -105,16 +113,18 @@ def get_comment_service(
     pin_repo: PinRepository = Depends(get_pin_repository),
     comment_repo: CommentRepository = Depends(get_comment_repository),
     comment_filter: CommentFilter = Depends(get_comment_filter),
+    db: AsyncSession = Depends(get_db),
 ) -> CommentService:
-    return CommentService(pin_repo, comment_repo, comment_filter)
+    return CommentService(pin_repo, comment_repo, comment_filter, db)
 
 
 def get_discovery_service(
     pin_repo: PinRepository = Depends(get_pin_repository),
     discover_repo: DiscoverRepository = Depends(get_discover_repository),
     cache: CacheService = Depends(get_cache_service),
+    user_repo: UserRepository = Depends(get_user_repository),
 ) -> DiscoveryService:
-    return DiscoveryService(pin_repo, discover_repo, cache)
+    return DiscoveryService(pin_repo, discover_repo, cache, user_repo)
 
 
 def get_board_service(
@@ -122,5 +132,8 @@ def get_board_service(
     session_service: SessionService = Depends(get_session_service),
     board_repository: BoardRepository = Depends(get_board_repository),
     pin_service: PinService = Depends(get_pin_service),
+    user_repository: UserRepository = Depends(get_user_repository),
 ) -> BoardService:
-    return BoardService(db, session_service, board_repository, pin_service)
+    return BoardService(
+        db, session_service, board_repository, pin_service, user_repository
+    )

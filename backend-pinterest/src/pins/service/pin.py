@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.infra.s3 import S3Service
 from core.infra.gemini import GeminiService
 from core.exception import (
+    AppError,
     ConflictError,
     NotFoundError,
     ForbiddenError,
@@ -114,8 +115,16 @@ class PinService:
                 data.title,
                 data.description,
             )
-        tags = await self.tag_service.get_or_create_tag(data.tags)
-        pin = await self.repo.create_pin(owner, data, image_url, tags)
+        try:
+            tags = await self.tag_service.get_or_create_tag(data.tags)
+            pin = await self.repo.create_pin(owner, data, image_url, tags)
+            await self.db.commit()
+        except AppError:
+            await self.db.rollback()
+            raise
+        except Exception:
+            await self.db.rollback()
+            raise AppError(detail="Failed to create pin")
         index_image_task.delay(str(pin.id), base64_thumb)
         return pin
 
@@ -128,12 +137,29 @@ class PinService:
         if "tags" in update_data:
             pin.tags = await self.tag_service.get_or_create_tag(update_data["tags"])
             del update_data["tags"]
-        return await self.repo.update_pin(pin, update_data)
+        try:
+            updated_pin = await self.repo.update_pin(pin, update_data)
+            await self.db.commit()
+            return updated_pin
+        except AppError:
+            await self.db.rollback()
+            raise
+        except Exception:
+            await self.db.rollback()
+            raise AppError(detail="Failed to update pin")
 
     async def delete_pin(self, pin: PinModel, current_user: UserModel) -> None:
         if pin.owner_id != current_user.id:
             raise ForbiddenError("Not the pin owner")
-        await self.repo.delete_pin(pin)
+        try:
+            await self.repo.delete_pin(pin)
+            await self.db.commit()
+        except AppError:
+            await self.db.rollback()
+            raise
+        except Exception:
+            await self.db.rollback()
+            raise AppError(detail="Failed to delete pin")
 
     async def like_pin(self, pin_id: uuid.UUID, user_id: uuid.UUID) -> PinModel:
         try:
@@ -142,6 +168,12 @@ class PinService:
         except ConflictError:
             await self.db.rollback()
             raise ConflictError("Already liked")
+        except AppError:
+            await self.db.rollback()
+            raise
+        except Exception:
+            await self.db.rollback()
+            raise AppError(detail="Failed to like pin")
         return await self.repo.get_pin_by_id(pin_id)
 
     async def unlike_pin(self, pin_id: uuid.UUID, user_id: uuid.UUID) -> PinModel:
@@ -151,4 +183,10 @@ class PinService:
         except NotFoundError:
             await self.db.rollback()
             raise NotFoundError("Like not found")
+        except AppError:
+            await self.db.rollback()
+            raise
+        except Exception:
+            await self.db.rollback()
+            raise AppError(detail="Failed to unlike pin")
         return await self.repo.get_pin_by_id(pin_id)

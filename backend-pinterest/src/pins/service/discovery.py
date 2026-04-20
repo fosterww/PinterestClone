@@ -7,6 +7,7 @@ from boards.models import PinModel
 from pins.repository.pin import PinRepository
 from pins.repository.discover import DiscoverRepository
 from pins.schemas import PinListResponse
+from users.repository import UserRepository
 
 
 class DiscoveryService:
@@ -15,10 +16,12 @@ class DiscoveryService:
         pin_repo: PinRepository,
         discover_repo: DiscoverRepository,
         cache: CacheService,
+        user_repo: UserRepository,
     ):
         self.pin_repo = pin_repo
         self.discover_repo = discover_repo
         self.cache = cache
+        self.user_repo = user_repo
 
     async def _get_from_cache(self, pin_id: uuid.UUID) -> List[PinListResponse] | None:
         try:
@@ -79,6 +82,19 @@ class DiscoveryService:
     async def get_personalized_feed(
         self, user_id: uuid.UUID, limit: int = 20
     ) -> List[PinModel]:
+        feed: list[PinModel] = []
+        seen_pin_ids: list[uuid.UUID] = []
+
+        followed_user_ids = await self.user_repo.get_followed_user_ids(user_id)
+        if followed_user_ids:
+            followed_pins = await self.discover_repo.get_following_feed(
+                followed_user_ids, limit
+            )
+            feed.extend(followed_pins)
+            seen_pin_ids.extend(pin.id for pin in followed_pins)
+            if len(feed) >= limit:
+                return feed
+
         key = f"user_interests:{user_id}"
         try:
             tag_id_strs = await self.cache.redis.lrange(key, 0, -1)
@@ -93,4 +109,22 @@ class DiscoveryService:
             logger.warning(f"Error getting interests for user {user_id}: {e}")
             tag_ids = []
 
-        return await self.discover_repo.get_personalized_feed(tag_ids, limit)
+        remaining = limit - len(feed)
+        if remaining > 0:
+            personalized_pins = await self.discover_repo.get_personalized_feed(
+                tag_ids,
+                remaining,
+                exclude_pin_ids=seen_pin_ids,
+            )
+            feed.extend(personalized_pins)
+            seen_pin_ids.extend(pin.id for pin in personalized_pins)
+
+        remaining = limit - len(feed)
+        if remaining > 0:
+            latest_pins = await self.discover_repo.get_latest_pins(
+                remaining,
+                exclude_pin_ids=seen_pin_ids,
+            )
+            feed.extend(latest_pins)
+
+        return feed

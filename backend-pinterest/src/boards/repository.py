@@ -12,7 +12,7 @@ from core.logger import logger
 
 from boards.models import BoardModel, PinModel, PinCommentModel, board_pin_association
 from users.models import UserModel
-from boards.schemas import BoardCreate, BoardUpdate
+from boards.schemas import BoardCreate, BoardUpdate, BoardVisibility
 
 
 class BoardRepository:
@@ -50,6 +50,22 @@ class BoardRepository:
             return result.scalars().all()
         except SQLAlchemyError:
             logger.error(f"Database error while fetching boards: {user_id}")
+            raise AppError()
+
+    async def get_public_by_owner_id(self, user_id: uuid.UUID) -> List[BoardModel]:
+        try:
+            result = await self.db.execute(
+                select(BoardModel)
+                .where(
+                    BoardModel.owner_id == user_id,
+                    BoardModel.visibility == BoardVisibility.PUBLIC,
+                )
+                .options(selectinload(BoardModel.user))
+                .order_by(BoardModel.updated_at.desc())
+            )
+            return result.scalars().all()
+        except SQLAlchemyError:
+            logger.error(f"Database error while fetching public boards: {user_id}")
             raise AppError()
 
     async def get_by_id(self, board_id: uuid.UUID) -> BoardModel | None:
@@ -107,9 +123,13 @@ class BoardRepository:
                 )
             else:
                 stmt = sa_insert(board_pin_association).values(**values)
-            await self.db.execute(stmt)
+            result = await self.db.execute(stmt)
+            if result.rowcount == 0:
+                raise ConflictError("Pin is already on this board")
             await self.db.flush()
             self.db.expire(board, ["pins"])
+        except ConflictError:
+            raise
         except IntegrityError:
             await self.db.rollback()
             raise ConflictError("Pin is already on this board")

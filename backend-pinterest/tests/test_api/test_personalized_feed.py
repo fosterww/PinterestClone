@@ -1,6 +1,9 @@
 import pytest
 from httpx import AsyncClient
 import io
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from users.repository import UserRepository
 
 
 async def _register_and_login(client: AsyncClient, username: str, email: str) -> dict:
@@ -72,3 +75,103 @@ async def test_api_personalized_feed(client: AsyncClient, fake_image: bytes):
     assert titles[0] == "Forest"
     assert titles[1] == "City"
     assert titles[2] == "Mountain"
+
+
+@pytest.mark.asyncio
+async def test_api_personalized_feed_prefers_followed_users(
+    client: AsyncClient, fake_image: bytes, db_session: AsyncSession
+):
+    follower_headers = await _register_and_login(
+        client, "feed_follower", "feed_follower@example.com"
+    )
+    followed_headers = await _register_and_login(
+        client, "feed_followed", "feed_followed@example.com"
+    )
+
+    follower_user = await UserRepository(db_session).get_user_by_username(
+        "feed_follower"
+    )
+    await UserRepository(db_session).follow_user(follower_user.id, "feed_followed")
+
+    await _create_pin(
+        client,
+        followed_headers,
+        "Followed New",
+        tags=["travel"],
+        fake_image=fake_image,
+    )
+    await _create_pin(
+        client,
+        followed_headers,
+        "Followed Old",
+        tags=["travel"],
+        fake_image=fake_image,
+    )
+    own_pin = await _create_pin(
+        client,
+        follower_headers,
+        "Own Nature",
+        tags=["nature"],
+        fake_image=fake_image,
+    )
+    await _create_pin(
+        client,
+        follower_headers,
+        "Another Own",
+        tags=["nature"],
+        fake_image=fake_image,
+    )
+
+    response = await client.get(
+        f"/api/v2/pins/{own_pin['id']}", headers=follower_headers
+    )
+    assert response.status_code == 200
+
+    response = await client.get("/api/v2/pins/personalized", headers=follower_headers)
+    assert response.status_code == 200
+
+    titles = [pin["title"] for pin in response.json()]
+    assert set(titles[:2]) == {"Followed New", "Followed Old"}
+    assert "Own Nature" in titles
+
+
+@pytest.mark.asyncio
+async def test_api_personalized_feed_backfills_with_latest_global_pins(
+    client: AsyncClient, fake_image: bytes, db_session: AsyncSession
+):
+    follower_headers = await _register_and_login(
+        client, "global_follower", "global_follower@example.com"
+    )
+    followed_headers = await _register_and_login(
+        client, "global_followed", "global_followed@example.com"
+    )
+    global_headers = await _register_and_login(
+        client, "global_source", "global_source@example.com"
+    )
+
+    follower_user = await UserRepository(db_session).get_user_by_username(
+        "global_follower"
+    )
+    await UserRepository(db_session).follow_user(follower_user.id, "global_followed")
+
+    await _create_pin(
+        client,
+        followed_headers,
+        "Only Followed Pin",
+        tags=["travel"],
+        fake_image=fake_image,
+    )
+    await _create_pin(
+        client,
+        global_headers,
+        "Newest Global Pin",
+        tags=["design"],
+        fake_image=fake_image,
+    )
+
+    response = await client.get("/api/v2/pins/personalized", headers=follower_headers)
+    assert response.status_code == 200
+
+    titles = [pin["title"] for pin in response.json()]
+    assert titles[0] == "Only Followed Pin"
+    assert "Newest Global Pin" in titles

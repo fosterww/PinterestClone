@@ -2,13 +2,14 @@ import uuid
 from typing import List
 
 from anyio import to_thread
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from users.models import UserModel
 from pins.repository.pin import PinRepository
 from pins.repository.comment import CommentRepository
 from pins.schemas import PinCommentResponse
 from boards.models import PinCommentModel
-from core.exception import NotFoundError, ForbiddenError, BadRequestError
+from core.exception import AppError, NotFoundError, ForbiddenError, BadRequestError
 from core.infra.comment_filter import CommentFilter
 
 
@@ -18,10 +19,12 @@ class CommentService:
         pin_repo: PinRepository,
         comment_repo: CommentRepository,
         comment_filter: CommentFilter,
+        db: AsyncSession,
     ):
         self.pin_repo = pin_repo
         self.comment_repo = comment_repo
         self.comment_filter = comment_filter
+        self.db = db
 
     def _build_comment_tree(self, comments: List[PinCommentModel]):
         id_to_resp = {
@@ -91,12 +94,22 @@ class CommentService:
             comment = await self.comment_repo.get_comment_by_id(parent_id)
             if not comment:
                 raise NotFoundError("Comment not found")
+            if comment.pin_id != pin.id:
+                raise NotFoundError("Comment not found")
         if not await to_thread.run_sync(self.comment_filter.filter_comment_text, text):
             raise BadRequestError("Comment is toxic")
-        new_comment = await self.comment_repo.add_comment(
-            pin_id=pin_id, user_id=user_id, text=text, parent_id=parent_id
-        )
-        return new_comment
+        try:
+            new_comment = await self.comment_repo.add_comment(
+                pin_id=pin_id, user_id=user_id, text=text, parent_id=parent_id
+            )
+            await self.db.commit()
+            return new_comment
+        except AppError:
+            await self.db.rollback()
+            raise
+        except Exception:
+            await self.db.rollback()
+            raise AppError(detail="Failed to add comment")
 
     async def update_comment(
         self, comment_id: uuid.UUID, user_id: uuid.UUID, text: str
@@ -106,8 +119,16 @@ class CommentService:
             raise NotFoundError("Comment not found")
         if comment.user_id != user_id:
             raise ForbiddenError("Not the comment owner")
-        updated_comment = await self.comment_repo.update_comment(comment, text)
-        return updated_comment
+        try:
+            updated_comment = await self.comment_repo.update_comment(comment, text)
+            await self.db.commit()
+            return updated_comment
+        except AppError:
+            await self.db.rollback()
+            raise
+        except Exception:
+            await self.db.rollback()
+            raise AppError(detail="Failed to update comment")
 
     async def delete_comment(
         self, pin_id: uuid.UUID, comment_id: uuid.UUID, current_user: UserModel
@@ -122,7 +143,15 @@ class CommentService:
             raise ForbiddenError("Not the comment owner")
         if comment.pin_id != pin.id:
             raise NotFoundError("Comment not found")
-        await self.comment_repo.delete_comment(comment)
+        try:
+            await self.comment_repo.delete_comment(comment)
+            await self.db.commit()
+        except AppError:
+            await self.db.rollback()
+            raise
+        except Exception:
+            await self.db.rollback()
+            raise AppError(detail="Failed to delete comment")
 
     async def add_comment_like(
         self, pin_id: uuid.UUID, comment_id: uuid.UUID, user_id: uuid.UUID
@@ -133,9 +162,20 @@ class CommentService:
         comment = await self.comment_repo.get_comment_by_id(comment_id)
         if not comment:
             raise NotFoundError("Comment not found")
-
-        updated_comment = await self.comment_repo.add_comment_like(comment_id, user_id)
-        return updated_comment
+        if comment.pin_id != pin.id:
+            raise NotFoundError("Comment not found")
+        try:
+            updated_comment = await self.comment_repo.add_comment_like(
+                comment_id, user_id
+            )
+            await self.db.commit()
+            return updated_comment
+        except AppError:
+            await self.db.rollback()
+            raise
+        except Exception:
+            await self.db.rollback()
+            raise AppError(detail="Failed to like comment")
 
     async def delete_comment_like(
         self, pin_id: uuid.UUID, comment_id: uuid.UUID, user_id: uuid.UUID
@@ -146,10 +186,19 @@ class CommentService:
         comment = await self.comment_repo.get_comment_by_id(comment_id)
         if not comment:
             raise NotFoundError("Comment not found")
+        if comment.pin_id != pin.id:
+            raise NotFoundError("Comment not found")
 
         like = await self.comment_repo.get_comment_like(comment_id, user_id)
         if not like:
             raise NotFoundError("Comment like not found")
-
-        updated_comment = await self.comment_repo.delete_comment_like(like)
-        return updated_comment
+        try:
+            updated_comment = await self.comment_repo.delete_comment_like(like)
+            await self.db.commit()
+            return updated_comment
+        except AppError:
+            await self.db.rollback()
+            raise
+        except Exception:
+            await self.db.rollback()
+            raise AppError(detail="Failed to unlike comment")

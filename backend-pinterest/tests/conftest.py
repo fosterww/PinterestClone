@@ -27,6 +27,7 @@ from pins.service.comment import CommentService
 from pins.repository.comment import CommentRepository
 from pins.service.discovery import DiscoveryService
 from pins.repository.discover import DiscoverRepository
+from users.repository import UserRepository
 
 
 limiter.enabled = False
@@ -235,7 +236,7 @@ def comment_svc(
 ):
     pin_repo = PinRepository(db_session)
     comment_repo = CommentRepository(db_session)
-    return CommentService(pin_repo, comment_repo, comment_filter)
+    return CommentService(pin_repo, comment_repo, comment_filter, db_session)
 
 
 @pytest.fixture
@@ -245,4 +246,5 @@ def discovery_svc(
 ):
     pin_repo = PinRepository(db_session)
     discover_repo = DiscoverRepository(db_session)
-    return DiscoveryService(pin_repo, discover_repo, mock_cache_service)
+    user_repo = UserRepository(db_session)
+    return DiscoveryService(pin_repo, discover_repo, mock_cache_service, user_repo)

@@ -4,13 +4,35 @@ import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from sqlalchemy import String, func, DateTime, ForeignKey
+from sqlalchemy import String, func, DateTime, ForeignKey, Table, Column
+from sqlalchemy import UUID as SAUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
 
 if TYPE_CHECKING:
     from boards.models import BoardModel, PinModel, PinLikeModel, PinCommentModel
+
+
+user_follow_association = Table(
+    "user_follows",
+    Base.metadata,
+    Column(
+        "follower_id",
+        SAUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "followed_id",
+        SAUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "created_at", DateTime(timezone=True), server_default=func.now(), nullable=False
+    ),
+)
 
 
 class UserModel(Base):
@@ -43,6 +65,21 @@ class UserModel(Base):
     )
     refresh_tokens: Mapped[list["RefreshTokenModel"]] = relationship(
         "RefreshTokenModel", back_populates="user", cascade="all, delete"
+    )
+
+    followers: Mapped[list["UserModel"]] = relationship(
+        "UserModel",
+        secondary=user_follow_association,
+        primaryjoin=id == user_follow_association.c.followed_id,
+        secondaryjoin=id == user_follow_association.c.follower_id,
+        viewonly=True,
+    )
+    following: Mapped[list["UserModel"]] = relationship(
+        "UserModel",
+        secondary=user_follow_association,
+        primaryjoin=id == user_follow_association.c.follower_id,
+        secondaryjoin=id == user_follow_association.c.followed_id,
+        viewonly=True,
     )
 
 

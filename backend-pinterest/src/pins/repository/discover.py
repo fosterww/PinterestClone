@@ -39,19 +39,43 @@ class DiscoverRepository:
             )
             raise AppError()
 
+    async def get_following_feed(
+        self,
+        followed_user_ids: list[uuid.UUID],
+        limit: int = 20,
+        exclude_pin_ids: list[uuid.UUID] | None = None,
+    ) -> list[PinModel]:
+        try:
+            if not followed_user_ids:
+                return []
+
+            query = (
+                select(PinModel)
+                .options(selectinload(PinModel.tags))
+                .where(PinModel.owner_id.in_(followed_user_ids))
+                .order_by(PinModel.created_at.desc())
+            )
+
+            if exclude_pin_ids:
+                query = query.where(PinModel.id.notin_(exclude_pin_ids))
+
+            result = await self.db.execute(query.limit(limit))
+            return list(result.scalars().all())
+        except SQLAlchemyError:
+            logger.error(
+                f"Database error while fetching following feed for users: {followed_user_ids}"
+            )
+            raise AppError()
+
     async def get_personalized_feed(
-        self, tag_ids: list[uuid.UUID], limit: int = 20
+        self,
+        tag_ids: list[uuid.UUID],
+        limit: int = 20,
+        exclude_pin_ids: list[uuid.UUID] | None = None,
     ) -> list[PinModel]:
         try:
             if not tag_ids:
-                query = (
-                    select(PinModel)
-                    .options(selectinload(PinModel.tags))
-                    .order_by(PinModel.created_at.desc())
-                    .limit(limit)
-                )
-                result = await self.db.execute(query)
-                return list(result.scalars().all())
+                return []
 
             query = (
                 select(PinModel)
@@ -63,24 +87,31 @@ class DiscoverRepository:
                     PinModel.created_at.desc(),
                 )
                 .options(selectinload(PinModel.tags))
-                .limit(limit)
             )
+            if exclude_pin_ids:
+                query = query.where(PinModel.id.notin_(exclude_pin_ids))
+            query = query.limit(limit)
             result = await self.db.execute(query)
-            pins = list(result.scalars().all())
-
-            if len(pins) < limit:
-                remaining = limit - len(pins)
-                exclude_ids = [pin.id for pin in pins]
-                fill_query = select(PinModel).options(selectinload(PinModel.tags))
-                if exclude_ids:
-                    fill_query = fill_query.where(PinModel.id.notin_(exclude_ids))
-                fill_query = fill_query.order_by(PinModel.created_at.desc()).limit(
-                    remaining
-                )
-                fill_result = await self.db.execute(fill_query)
-                pins.extend(fill_result.scalars().all())
-
-            return pins
+            return list(result.scalars().all())
         except SQLAlchemyError:
             logger.error(f"Database error while fetching personalized feed: {tag_ids}")
+            raise AppError()
+
+    async def get_latest_pins(
+        self,
+        limit: int = 20,
+        exclude_pin_ids: list[uuid.UUID] | None = None,
+    ) -> list[PinModel]:
+        try:
+            query = (
+                select(PinModel)
+                .options(selectinload(PinModel.tags))
+                .order_by(PinModel.created_at.desc())
+            )
+            if exclude_pin_ids:
+                query = query.where(PinModel.id.notin_(exclude_pin_ids))
+            result = await self.db.execute(query.limit(limit))
+            return list(result.scalars().all())
+        except SQLAlchemyError:
+            logger.error("Database error while fetching latest pins")
             raise AppError()

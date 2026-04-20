@@ -2,13 +2,14 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.exception import NotFoundError, ForbiddenError
+from core.exception import AppError, NotFoundError, ForbiddenError
 from core.security.session import SessionService
-from boards.models import BoardModel
+from boards.models import BoardModel, BoardVisibility
 from users.models import UserModel
 from boards.schemas import BoardCreate, BoardUpdate, BoardResponse
 from boards.repository import BoardRepository
 from pins.service.pin import PinService
+from users.repository import UserRepository
 
 
 class BoardService:
@@ -18,23 +19,51 @@ class BoardService:
         session_service: SessionService,
         board_repository: BoardRepository,
         pin_service: PinService,
+        user_repository: UserRepository,
     ) -> None:
         self.db = db
         self.session_service = session_service
         self.board_repository = board_repository
         self.pin_service = pin_service
+        self.user_repository = user_repository
 
     async def create_board(self, owner: UserModel, data: BoardCreate) -> BoardResponse:
-        return await self.board_repository.create(owner, data)
+        try:
+            board = await self.board_repository.create(owner, data)
+            await self.db.commit()
+            return BoardResponse.model_validate(board)
+        except AppError:
+            await self.db.rollback()
+            raise
+        except Exception:
+            await self.db.rollback()
+            raise AppError(detail="Failed to create board")
 
     async def get_user_boards(self, user_id: uuid.UUID) -> list[BoardResponse]:
         return await self.board_repository.get_by_owner_id(user_id)
 
-    async def get_board_by_id(self, board_id: uuid.UUID) -> BoardModel | None:
+    async def get_board_by_id(
+        self, board_id: uuid.UUID, current_user: UserModel | None = None
+    ) -> BoardModel | None:
         result = await self.board_repository.get_by_id(board_id)
         if result is None:
             raise NotFoundError("Board not found")
+        is_owner = current_user is not None and result.owner_id == current_user.id
+        if result.visibility == BoardVisibility.SECRET and not is_owner:
+            raise ForbiddenError("This board is private")
         return result
+
+    async def get_visible_boards_for_user(
+        self, username: str, current_user: UserModel | None = None
+    ) -> list[BoardResponse]:
+        user = await self.user_repository.get_user_by_username(username)
+        if user is None:
+            raise NotFoundError("User not found")
+
+        if current_user is not None and current_user.id == user.id:
+            return await self.board_repository.get_by_owner_id(user.id)
+
+        return await self.board_repository.get_public_by_owner_id(user.id)
 
     async def update_board(
         self,
@@ -47,7 +76,16 @@ class BoardService:
             raise NotFoundError("Board not found")
         if board.owner_id != current_user.id:
             raise ForbiddenError("Not the board owner")
-        return await self.board_repository.update_board(board, data)
+        try:
+            updated_board = await self.board_repository.update_board(board, data)
+            await self.db.commit()
+            return BoardResponse.model_validate(updated_board)
+        except AppError:
+            await self.db.rollback()
+            raise
+        except Exception:
+            await self.db.rollback()
+            raise AppError(detail="Failed to update board")
 
     async def add_pin_to_board(
         self,
@@ -63,7 +101,15 @@ class BoardService:
             raise NotFoundError("Pin not found")
         if board.owner_id != current_user.id:
             raise ForbiddenError("Not the board owner")
-        return await self.board_repository.add_pin_to_board(board, pin)
+        try:
+            await self.board_repository.add_pin_to_board(board, pin)
+            await self.db.commit()
+        except AppError:
+            await self.db.rollback()
+            raise
+        except Exception:
+            await self.db.rollback()
+            raise AppError(detail="Failed to add pin to board")
 
     async def remove_pin_from_board(
         self,
@@ -79,4 +125,12 @@ class BoardService:
             raise NotFoundError("Pin not found")
         if board.owner_id != current_user.id:
             raise ForbiddenError("Not the board owner")
-        return await self.board_repository.remove_pin_from_board(board, pin)
+        try:
+            await self.board_repository.remove_pin_from_board(board, pin)
+            await self.db.commit()
+        except AppError:
+            await self.db.rollback()
+            raise
+        except Exception:
+            await self.db.rollback()
+            raise AppError(detail="Failed to remove pin from board")

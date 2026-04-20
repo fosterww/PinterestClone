@@ -1,5 +1,3 @@
-import uuid
-
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
@@ -21,7 +19,7 @@ class TagService:
             unique_names = list(dict.fromkeys(tag_names))
             query = (
                 insert(TagModel)
-                .values([{"id": uuid.uuid4(), "name": name} for name in unique_names])
+                .values([{"name": name} for name in unique_names])
                 .on_conflict_do_nothing(index_elements=[TagModel.name])
             )
             await self.db.execute(query)

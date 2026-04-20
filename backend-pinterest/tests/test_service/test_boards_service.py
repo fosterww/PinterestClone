@@ -43,7 +43,8 @@ def auth_svc(db_session: AsyncSession, mock_session_service):
 @pytest.fixture
 def board_svc(db_session: AsyncSession, mock_session_service, pin_svc: PinService):
     repo = BoardRepository(db_session)
-    return BoardService(db_session, mock_session_service, repo, pin_svc)
+    user_repo = UserRepository(db_session)
+    return BoardService(db_session, mock_session_service, repo, pin_svc, user_repo)
 
 
 @pytest_asyncio.fixture

@@ -4,7 +4,7 @@ from typing import List
 from fastapi import APIRouter, Depends, status, Request
 
 from core.security.limiter import limiter
-from core.security.auth import get_current_user
+from core.security.auth import get_current_user, get_optional_current_user
 from users.models import UserModel
 from boards.schemas import (
     BoardCreate,
@@ -46,10 +46,11 @@ async def list_boards(
 async def read_board(
     request: Request,
     board_id: uuid.UUID,
+    current_user: UserModel | None = Depends(get_optional_current_user),
     board_service: BoardService = Depends(get_board_service),
 ) -> BoardPinsResponse:
     """Get a board by id."""
-    return await board_service.get_board_by_id(board_id)
+    return await board_service.get_board_by_id(board_id, current_user)
 
 
 @router.patch("/{board_id}")
