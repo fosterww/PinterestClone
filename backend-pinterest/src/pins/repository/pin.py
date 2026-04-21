@@ -89,6 +89,7 @@ class PinRepository:
             result = await self.db.execute(
                 select(PinModel)
                 .where(PinModel.id == pin_id)
+                .values(views_count=PinModel.views_count + 1)
                 .options(selectinload(PinModel.tags))
             )
             return result.scalar_one_or_none()
@@ -114,6 +115,26 @@ class PinRepository:
             return result.scalars().all()
         except SQLAlchemyError:
             logger.error(f"Database error while fetching pins by IDs: {pin_ids}")
+            raise AppError()
+
+    async def get_pin_by_id_and_increment_views(
+        self, pin_id: uuid.UUID
+    ) -> PinModel | None:
+        try:
+            await self.db.execute(
+                update(PinModel)
+                .where(PinModel.id == pin_id)
+                .values(views_count=PinModel.views_count + 1)
+            )
+            await self.db.flush()
+            result = await self.db.execute(
+                select(PinModel)
+                .where(PinModel.id == pin_id)
+                .options(selectinload(PinModel.tags))
+            )
+            return result.scalar_one_or_none()
+        except SQLAlchemyError:
+            logger.error(f"Database error while fetching pin: {pin_id}")
             raise AppError()
 
     async def get_user_pins(self, username: str) -> List[PinModel]:

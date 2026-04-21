@@ -2,11 +2,9 @@ from fastapi import APIRouter, Depends, Request
 
 from core.security.limiter import limiter
 from core.security.auth import get_current_user, get_optional_current_user
-from core.exception import NotFoundError
 from users.models import UserModel
 from users.schemas import UserUpdate, UserResponse, PublicUserResponse
-from core.dependencies import get_user_repository, get_user_service
-from users.repository import UserRepository
+from core.dependencies import get_user_service
 from users.service import UserService
 from boards.schemas import BoardResponse
 from boards.service import BoardService
@@ -31,10 +29,10 @@ async def update_current_user(
     request: Request,
     data: UserUpdate,
     current_user: UserModel = Depends(get_current_user),
-    user_repository: UserRepository = Depends(get_user_repository),
+    user_service: UserService = Depends(get_user_service),
 ) -> UserResponse:
     """Update current user."""
-    return await user_repository.update_user(current_user.id, data)
+    return await user_service.update_current_user(current_user.id, data)
 
 
 @router.get("/{username}")
@@ -42,13 +40,10 @@ async def update_current_user(
 async def read_public_user(
     request: Request,
     username: str,
-    user_repository: UserRepository = Depends(get_user_repository),
+    user_service: UserService = Depends(get_user_service),
 ) -> PublicUserResponse:
     """Get a public user profile by username."""
-    profile = await user_repository.get_public_user_profile(username)
-    if profile is None:
-        raise NotFoundError("User not found")
-    return PublicUserResponse.model_validate(profile)
+    return await user_service.get_public_user_profile(username)
 
 
 @router.get("/{username}/boards")

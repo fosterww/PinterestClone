@@ -102,7 +102,7 @@ async def read_pin(
     discovery_service: DiscoveryService = Depends(get_discovery_service),
 ) -> PinResponse:
     """Get pin detail by id, including comments and recommendation tracking."""
-    pin = await pin_service.get_pin_by_id(pin_id)
+    pin = await pin_service.get_pin_by_id_and_increment_views(pin_id)
     if pin.tags:
         tag_ids = [tag.id for tag in pin.tags]
         await discovery_service.record_tag_visit(current_user.id, tag_ids)

@@ -1,7 +1,7 @@
 import uuid
 from typing import List
 
-from sqlalchemy import select, delete, insert as sa_insert
+from sqlalchemy import select, delete, insert as sa_insert, or_
 from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -86,6 +86,39 @@ class BoardRepository:
             logger.error(f"Database error while fetching board: {board_id}")
             raise AppError()
 
+    async def search_boards(
+        self,
+        query: str,
+        limit: int,
+        offset: int,
+        current_user_id: uuid.UUID | None = None,
+    ) -> List[BoardModel]:
+        try:
+            stmt = (
+                select(BoardModel)
+                .where(BoardModel.title.ilike(f"%{query}%"))
+                .options(selectinload(BoardModel.user))
+                .order_by(BoardModel.updated_at.desc())
+                .limit(limit)
+                .offset(offset)
+            )
+
+            if current_user_id is None:
+                stmt = stmt.where(BoardModel.visibility == BoardVisibility.PUBLIC)
+            else:
+                stmt = stmt.where(
+                    or_(
+                        BoardModel.visibility == BoardVisibility.PUBLIC,
+                        BoardModel.owner_id == current_user_id,
+                    )
+                )
+
+            result = await self.db.execute(stmt)
+            return result.scalars().all()
+        except SQLAlchemyError:
+            logger.error(f"Database error while searching boards: {query}")
+            raise AppError()
+
     async def update_board(self, board: BoardModel, data: BoardUpdate) -> BoardModel:
         update_data = data.model_dump(exclude_unset=True)
         for field, value in update_data.items():
@@ -126,6 +159,7 @@ class BoardRepository:
             result = await self.db.execute(stmt)
             if result.rowcount == 0:
                 raise ConflictError("Pin is already on this board")
+            pin.saves_count += 1
             await self.db.flush()
             self.db.expire(board, ["pins"])
         except ConflictError:

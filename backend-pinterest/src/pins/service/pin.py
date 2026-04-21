@@ -74,6 +74,14 @@ class PinService:
     async def get_pins_by_ids(self, pin_ids: list[str]) -> List[PinModel]:
         return await self.repo.get_pins_by_ids(pin_ids)
 
+    async def get_pin_by_id_and_increment_views(
+        self, pin_id: uuid.UUID
+    ) -> PinModel | None:
+        result = await self.repo.get_pin_by_id_and_increment_views(pin_id)
+        if result is None:
+            raise NotFoundError("Pin not found")
+        return result
+
     async def create_pin(
         self,
         image: UploadFile,

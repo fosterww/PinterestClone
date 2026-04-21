@@ -24,6 +24,7 @@ from pins.service.pin import PinService
 from pins.service.comment import CommentService
 from pins.service.discovery import DiscoveryService
 from boards.service import BoardService
+from search.service import SearchService
 from tags.service import TagService
 
 
@@ -125,6 +126,14 @@ def get_discovery_service(
     user_repo: UserRepository = Depends(get_user_repository),
 ) -> DiscoveryService:
     return DiscoveryService(pin_repo, discover_repo, cache, user_repo)
+
+
+def get_search_service(
+    user_repository: UserRepository = Depends(get_user_repository),
+    board_repository: BoardRepository = Depends(get_board_repository),
+    pin_repository: PinRepository = Depends(get_pin_repository),
+) -> SearchService:
+    return SearchService(user_repository, board_repository, pin_repository)
 
 
 def get_board_service(

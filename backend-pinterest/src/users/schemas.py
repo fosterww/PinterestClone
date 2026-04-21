@@ -21,6 +21,15 @@ class UserUpdate(BaseModel):
     avatar_url: str | None = None
 
 
+class UserSearchResponse(BaseModel):
+    id: uuid.UUID
+    username: str
+    full_name: str | None = None
+    avatar_url: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class UserResponse(UserBase):
     id: uuid.UUID
     followers_count: int = 0

@@ -9,6 +9,7 @@ from redis.asyncio import Redis
 from auth.router import router as auth_router
 from boards.router import router as board_router
 from pins.router import router as pin_router
+from search.router import router as search_router
 from users.router import router as user_router
 from core.config import settings
 from core.security.limiter import limiter
@@ -46,6 +47,7 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.include_router(auth_router, prefix="/api/v2/auth", tags=["auth"])
+app.include_router(search_router, prefix="/api/v2/search", tags=["search"])
 app.include_router(user_router, prefix="/api/v2/users", tags=["users"])
 app.include_router(pin_router, prefix="/api/v2/pins", tags=["pins"])
 app.include_router(board_router, prefix="/api/v2/boards", tags=["boards"])

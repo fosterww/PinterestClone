@@ -79,6 +79,27 @@ class UserRepository:
             logger.error(f"Database error while fetching user by username: {username}")
             raise AppError()
 
+    async def search_public_profiles(
+        self, query: str, limit: int, offset: int
+    ) -> list[UserModel]:
+        try:
+            result = await self.db.execute(
+                select(UserModel)
+                .where(
+                    or_(
+                        UserModel.username.ilike(f"%{query}%"),
+                        UserModel.full_name.ilike(f"%{query}%"),
+                    )
+                )
+                .order_by(UserModel.username.asc())
+                .limit(limit)
+                .offset(offset)
+            )
+            return result.scalars().all()
+        except SQLAlchemyError:
+            logger.error(f"Database error while searching users by username: {query}")
+            raise AppError()
+
     async def get_public_user_profile(self, username: str) -> dict | None:
         try:
             user = await self.get_user_by_username(username)

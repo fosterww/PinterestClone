@@ -57,7 +57,9 @@ class PinModel(Base):
     likes: Mapped[list["PinLikeModel"]] = relationship(
         "PinLikeModel", back_populates="pin"
     )
+    views_count: Mapped[int] = mapped_column(server_default="0")
     likes_count: Mapped[int] = mapped_column(server_default="0")
+    saves_count: Mapped[int] = mapped_column(server_default="0")
     user: Mapped["UserModel"] = relationship("UserModel", back_populates="pins")
     boards: Mapped[list["BoardModel"]] = relationship(
         "BoardModel", secondary=board_pin_association, back_populates="pins"
