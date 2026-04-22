@@ -89,7 +89,6 @@ class PinRepository:
             result = await self.db.execute(
                 select(PinModel)
                 .where(PinModel.id == pin_id)
-                .values(views_count=PinModel.views_count + 1)
                 .options(selectinload(PinModel.tags))
             )
             return result.scalar_one_or_none()

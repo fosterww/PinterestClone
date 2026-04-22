@@ -19,6 +19,7 @@ class UserUpdate(BaseModel):
     full_name: str | None = None
     bio: str | None = None
     avatar_url: str | None = None
+    email_notifications_enabled: bool | None = None
 
 
 class UserSearchResponse(BaseModel):
@@ -34,6 +35,7 @@ class UserResponse(UserBase):
     id: uuid.UUID
     followers_count: int = 0
     following_count: int = 0
+    email_notifications_enabled: bool = True
 
     model_config = ConfigDict(from_attributes=True)
 

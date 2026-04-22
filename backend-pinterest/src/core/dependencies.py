@@ -8,6 +8,7 @@ from core.security.session import SessionService
 from core.infra.cache import CacheService
 from core.infra.s3 import S3Service
 from core.infra.comment_filter import CommentFilter
+from notification.service import NotificationService
 
 from users.repository import UserRepository
 from users.service import UserService
@@ -84,11 +85,18 @@ async def get_s3_service() -> S3Service:
     return S3Service()
 
 
+def get_notification_service(
+    db: AsyncSession = Depends(get_db),
+) -> NotificationService:
+    return NotificationService(db)
+
+
 async def get_user_service(
     db: AsyncSession = Depends(get_db),
     repo: UserRepository = Depends(get_user_repository),
+    notification_service: NotificationService = Depends(get_notification_service),
 ) -> UserService:
-    return UserService(db, repo)
+    return UserService(db, repo, notification_service)
 
 
 def get_auth_service(
@@ -115,8 +123,11 @@ def get_comment_service(
     comment_repo: CommentRepository = Depends(get_comment_repository),
     comment_filter: CommentFilter = Depends(get_comment_filter),
     db: AsyncSession = Depends(get_db),
+    notification_service: NotificationService = Depends(get_notification_service),
 ) -> CommentService:
-    return CommentService(pin_repo, comment_repo, comment_filter, db)
+    return CommentService(
+        pin_repo, comment_repo, comment_filter, db, notification_service
+    )
 
 
 def get_discovery_service(
@@ -142,7 +153,13 @@ def get_board_service(
     board_repository: BoardRepository = Depends(get_board_repository),
     pin_service: PinService = Depends(get_pin_service),
     user_repository: UserRepository = Depends(get_user_repository),
+    notification_service: NotificationService = Depends(get_notification_service),
 ) -> BoardService:
     return BoardService(
-        db, session_service, board_repository, pin_service, user_repository
+        db,
+        session_service,
+        board_repository,
+        pin_service,
+        user_repository,
+        notification_service,
     )

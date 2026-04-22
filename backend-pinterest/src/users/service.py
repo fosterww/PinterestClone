@@ -10,12 +10,19 @@ from users.schemas import (
     UserResponse,
     UserUpdate,
 )
+from notification.service import NotificationService
 
 
 class UserService:
-    def __init__(self, db: AsyncSession, repository: UserRepository):
+    def __init__(
+        self,
+        db: AsyncSession,
+        repository: UserRepository,
+        notification_service: NotificationService | None = None,
+    ):
         self.db = db
         self.repository = repository
+        self.notification_service = notification_service
 
     async def get_public_user_profile(self, username: str) -> PublicUserResponse:
         try:
@@ -48,6 +55,10 @@ class UserService:
                 return None
             await self.repository.follow_user(follower_id, followed_username)
             await self.db.commit()
+            if self.notification_service is not None:
+                await self.notification_service.notify_follow(
+                    follower_id, followed_username
+                )
         except AppError:
             await self.db.rollback()
             raise

@@ -52,6 +52,10 @@ class UserModel(Base):
     updated_at: Mapped[datetime] = mapped_column(
         default=func.now(), onupdate=func.now()
     )
+    email_notifications_enabled: Mapped[bool] = mapped_column(
+        default=True,
+        nullable=False,
+    )
 
     boards: Mapped[list["BoardModel"]] = relationship(
         "BoardModel", back_populates="user"

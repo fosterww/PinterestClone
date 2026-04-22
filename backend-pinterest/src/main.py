@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.responses import Response
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,6 +13,7 @@ from pins.router import router as pin_router
 from search.router import router as search_router
 from users.router import router as user_router
 from core.config import settings
+from core.infra.metrics import metrics_response, setup_metrics
 from core.security.limiter import limiter
 
 
@@ -42,6 +44,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+setup_metrics(app)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -51,3 +54,8 @@ app.include_router(search_router, prefix="/api/v2/search", tags=["search"])
 app.include_router(user_router, prefix="/api/v2/users", tags=["users"])
 app.include_router(pin_router, prefix="/api/v2/pins", tags=["pins"])
 app.include_router(board_router, prefix="/api/v2/boards", tags=["boards"])
+
+
+@app.get("/api/v2/metrics", include_in_schema=False)
+async def get_metrics() -> Response:
+    return metrics_response()

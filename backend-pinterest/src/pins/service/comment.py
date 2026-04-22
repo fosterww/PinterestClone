@@ -1,5 +1,6 @@
 import uuid
 from typing import List
+from typing import TYPE_CHECKING
 
 from anyio import to_thread
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +13,9 @@ from boards.models import PinCommentModel
 from core.exception import AppError, NotFoundError, ForbiddenError, BadRequestError
 from core.infra.comment_filter import CommentFilter
 
+if TYPE_CHECKING:
+    from notification.service import NotificationService
+
 
 class CommentService:
     def __init__(
@@ -20,11 +24,13 @@ class CommentService:
         comment_repo: CommentRepository,
         comment_filter: CommentFilter,
         db: AsyncSession,
+        notification_service: "NotificationService | None" = None,
     ):
         self.pin_repo = pin_repo
         self.comment_repo = comment_repo
         self.comment_filter = comment_filter
         self.db = db
+        self.notification_service = notification_service
 
     def _build_comment_tree(self, comments: List[PinCommentModel]):
         id_to_resp = {
@@ -103,6 +109,10 @@ class CommentService:
                 pin_id=pin_id, user_id=user_id, text=text, parent_id=parent_id
             )
             await self.db.commit()
+            if self.notification_service is not None:
+                await self.notification_service.notify_comment(
+                    user_id, pin_id, new_comment.id
+                )
             return new_comment
         except AppError:
             await self.db.rollback()

@@ -55,6 +55,15 @@ class Settings(BaseSettings):
 
     rabbitmq_url: str = "amqp://pinterest:pinterest@localhost:5672//"
 
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_use_tls: bool = True
+    email_from_address: str = ""
+    email_from_name: str = ""
+    frontend_base_url: str | None = None
+
     clarifai_api_key: str
     clarifai_user_id: str
     clarifai_app_id: str

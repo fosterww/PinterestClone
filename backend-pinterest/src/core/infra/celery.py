@@ -7,7 +7,7 @@ celery_app = Celery(
     "pinterest",
     broker=settings.rabbitmq_url,
     backend=settings.redis_url,
-    include=["pins.task"],
+    include=["pins.task", "notification.task"],
 )
 
 celery_app.conf.update(

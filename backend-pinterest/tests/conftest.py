@@ -12,6 +12,10 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from auth.repository import AuthRepository
+from boards.repository import BoardRepository
+from auth.service import AuthService
+from boards.service import BoardService
 from database import Base, get_db
 from main import app
 from core.security.limiter import limiter
@@ -20,6 +24,7 @@ from core.dependencies import (
     get_s3_service,
     get_comment_filter,
 )
+from notification.service import NotificationService
 from pins.repository.pin import PinRepository
 from pins.service.pin import PinService
 from tags.service import TagService
@@ -28,6 +33,7 @@ from pins.repository.comment import CommentRepository
 from pins.service.discovery import DiscoveryService
 from pins.repository.discover import DiscoverRepository
 from users.repository import UserRepository
+from users.service import UserService
 
 
 limiter.enabled = False
@@ -177,6 +183,7 @@ def mock_celery_tasks():
     with (
         patch("pins.task.index_image_task.delay") as mock_index,
         patch("pins.task.delete_image_task.delay") as mock_delete,
+        patch("notification.task.send_notification_email_task.delay"),
     ):
         yield mock_index, mock_delete
 
@@ -248,3 +255,41 @@ def discovery_svc(
     discover_repo = DiscoverRepository(db_session)
     user_repo = UserRepository(db_session)
     return DiscoveryService(pin_repo, discover_repo, mock_cache_service, user_repo)
+
+
+@pytest.fixture
+def auth_svc(db_session: AsyncSession, mock_session_service):
+    user_repo = UserRepository(db_session)
+    auth_repo = AuthRepository(db_session)
+    return AuthService(db_session, mock_session_service, user_repo, auth_repo)
+
+
+@pytest.fixture
+def notification_svc(db_session: AsyncSession):
+    return NotificationService(db_session)
+
+
+@pytest.fixture
+def user_svc(db_session: AsyncSession, notification_svc: NotificationService):
+    user_repo = UserRepository(db_session)
+    return UserService(db_session, user_repo, notification_svc)
+
+
+@pytest.fixture
+def board_svc(
+    db_session: AsyncSession,
+    mock_session_service,
+    pin_svc,
+    notification_svc: NotificationService,
+):
+
+    board_repo = BoardRepository(db_session)
+    user_repo = UserRepository(db_session)
+    return BoardService(
+        db_session,
+        mock_session_service,
+        board_repo,
+        pin_svc,
+        user_repo,
+        notification_svc,
+    )

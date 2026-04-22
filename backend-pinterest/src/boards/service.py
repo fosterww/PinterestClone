@@ -1,4 +1,5 @@
 import uuid
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +12,9 @@ from boards.repository import BoardRepository
 from pins.service.pin import PinService
 from users.repository import UserRepository
 
+if TYPE_CHECKING:
+    from notification.service import NotificationService
+
 
 class BoardService:
     def __init__(
@@ -20,12 +24,14 @@ class BoardService:
         board_repository: BoardRepository,
         pin_service: PinService,
         user_repository: UserRepository,
+        notification_service: "NotificationService | None" = None,
     ) -> None:
         self.db = db
         self.session_service = session_service
         self.board_repository = board_repository
         self.pin_service = pin_service
         self.user_repository = user_repository
+        self.notification_service = notification_service
 
     async def create_board(self, owner: UserModel, data: BoardCreate) -> BoardResponse:
         try:
@@ -104,6 +110,12 @@ class BoardService:
         try:
             await self.board_repository.add_pin_to_board(board, pin)
             await self.db.commit()
+            if self.notification_service is not None:
+                await self.notification_service.notify_pin_save(
+                    current_user.id,
+                    board.id,
+                    pin.id,
+                )
         except AppError:
             await self.db.rollback()
             raise
