@@ -104,6 +104,36 @@ services:
       - ./src:/app/src
     command: celery -A core.infra.celery beat --loglevel=info
 
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: pinterest_prometheus
+    depends_on:
+      - api
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./src/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: pinterest_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./src/monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./src/monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./src/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+
   api:
     build: .
     container_name: pinterest_api
@@ -140,3 +170,5 @@ volumes:
   minio_data:
   redis_data:
   cache:
+  prometheus_data:
+  grafana_data:

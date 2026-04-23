@@ -81,7 +81,7 @@ class PinRepository:
             result = await self.db.execute(query.offset(offset).limit(limit))
             return result.scalars().all()
         except SQLAlchemyError:
-            logger.error(f"Database error while fetching pins: {offset}, {limit}")
+            logger.exception(f"Database error while fetching pins: {offset}, {limit}")
             raise AppError()
 
     async def get_pin_by_id(self, pin_id: uuid.UUID) -> PinModel | None:
@@ -93,7 +93,7 @@ class PinRepository:
             )
             return result.scalar_one_or_none()
         except SQLAlchemyError:
-            logger.error(f"Database error while fetching pin: {pin_id}")
+            logger.exception(f"Database error while fetching pin: {pin_id}")
             raise AppError()
 
     async def get_pins_by_ids(self, pin_ids: list[str]) -> List[PinModel]:
@@ -113,7 +113,7 @@ class PinRepository:
             )
             return result.scalars().all()
         except SQLAlchemyError:
-            logger.error(f"Database error while fetching pins by IDs: {pin_ids}")
+            logger.exception(f"Database error while fetching pins by IDs: {pin_ids}")
             raise AppError()
 
     async def get_pin_by_id_and_increment_views(
@@ -133,7 +133,7 @@ class PinRepository:
             )
             return result.scalar_one_or_none()
         except SQLAlchemyError:
-            logger.error(f"Database error while fetching pin: {pin_id}")
+            logger.exception(f"Database error while fetching pin: {pin_id}")
             raise AppError()
 
     async def get_user_pins(self, username: str) -> List[PinModel]:
@@ -147,7 +147,7 @@ class PinRepository:
             )
             return result.scalars().all()
         except SQLAlchemyError:
-            logger.error(f"Database error while fetching user pins: {username}")
+            logger.exception(f"Database error while fetching user pins: {username}")
             raise AppError()
 
     async def add_like(self, pin_id: uuid.UUID, user_id: uuid.UUID):

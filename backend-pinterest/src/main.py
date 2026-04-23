@@ -56,6 +56,7 @@ app.include_router(pin_router, prefix="/api/v2/pins", tags=["pins"])
 app.include_router(board_router, prefix="/api/v2/boards", tags=["boards"])
 
 
+@app.get("/metrics", include_in_schema=False)
 @app.get("/api/v2/metrics", include_in_schema=False)
 async def get_metrics() -> Response:
     return metrics_response()
