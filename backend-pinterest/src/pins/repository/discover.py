@@ -28,7 +28,7 @@ class DiscoverRepository:
                     func.count(pin_tag_association.c.tag_id).desc(),
                     PinModel.created_at.desc(),
                 )
-                .options(selectinload(PinModel.tags))
+                .options(selectinload(PinModel.user), selectinload(PinModel.tags))
                 .limit(limit)
             )
             result = await self.db.execute(query)
@@ -51,7 +51,7 @@ class DiscoverRepository:
 
             query = (
                 select(PinModel)
-                .options(selectinload(PinModel.tags))
+                .options(selectinload(PinModel.user), selectinload(PinModel.tags))
                 .where(PinModel.owner_id.in_(followed_user_ids))
                 .order_by(PinModel.created_at.desc())
             )
@@ -86,7 +86,7 @@ class DiscoverRepository:
                     func.count(pin_tag_association.c.tag_id).desc(),
                     PinModel.created_at.desc(),
                 )
-                .options(selectinload(PinModel.tags))
+                .options(selectinload(PinModel.user), selectinload(PinModel.tags))
             )
             if exclude_pin_ids:
                 query = query.where(PinModel.id.notin_(exclude_pin_ids))
@@ -105,7 +105,7 @@ class DiscoverRepository:
         try:
             query = (
                 select(PinModel)
-                .options(selectinload(PinModel.tags))
+                .options(selectinload(PinModel.user), selectinload(PinModel.tags))
                 .order_by(PinModel.created_at.desc())
             )
             if exclude_pin_ids:

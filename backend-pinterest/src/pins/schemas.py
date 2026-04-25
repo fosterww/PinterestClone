@@ -5,7 +5,7 @@ from enum import Enum
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from tags.schemas import TagResponse
-from users.schemas import UserResponse
+from users.schemas import UserSearchResponse
 
 
 class PinBase(BaseModel):
@@ -31,7 +31,7 @@ class PinCommentResponse(PinCommentCreate):
     id: uuid.UUID
     likes_count: int = 0
     created_at: datetime
-    user: UserResponse
+    user: UserSearchResponse
     replies: list["PinCommentResponse"] = []
 
     model_config = ConfigDict(from_attributes=True)
@@ -39,6 +39,8 @@ class PinCommentResponse(PinCommentCreate):
 
 class PinCreate(PinBase):
     tags: list[str] | None = None
+    generate_ai_description: bool = False
+    generated_pin_id: uuid.UUID | None = None
 
 
 class PinUpdate(BaseModel):
@@ -52,6 +54,7 @@ class PinUpdate(BaseModel):
 class PinListResponse(PinBase):
     id: uuid.UUID
     owner_id: uuid.UUID
+    user: UserSearchResponse
     image_url: str
     tags: list[TagResponse]
     created_at: datetime
@@ -62,6 +65,7 @@ class PinListResponse(PinBase):
 class PinResponse(PinBase):
     id: uuid.UUID
     owner_id: uuid.UUID
+    user: UserSearchResponse
     image_url: str
     tags: list[TagResponse]
     created_at: datetime
@@ -73,7 +77,7 @@ class PinResponse(PinBase):
 class PinLikeResponse(BaseModel):
     id: uuid.UUID
     pin: PinResponse
-    user: UserResponse
+    user: UserSearchResponse
 
     model_config = ConfigDict(from_attributes=True)
 

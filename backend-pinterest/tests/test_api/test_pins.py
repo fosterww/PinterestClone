@@ -43,6 +43,7 @@ async def test_pin_crud_flow(client: AsyncClient, fake_image: bytes, mock_celery
     data = response.json()
     assert data["title"] == "My Test Pin"
     assert data["image_url"] == "http://mock-s3-url.com/image.jpg"
+    assert data["user"]["username"] == "pin_tester"
     returned_tag_names = {t["name"] for t in data["tags"]}
     assert "mock_tag1" in returned_tag_names
     assert "mock_tag2" in returned_tag_names
@@ -54,10 +55,12 @@ async def test_pin_crud_flow(client: AsyncClient, fake_image: bytes, mock_celery
     response = await client.get("/api/v2/pins/")
     assert response.status_code == 200
     assert len(response.json()) > 0
+    assert response.json()[0]["user"]["username"]
 
     response = await client.get(f"/api/v2/pins/{pin_id}", headers=headers)
     assert response.status_code == 200
     assert response.json()["id"] == pin_id
+    assert response.json()["user"]["username"] == "pin_tester"
 
     response = await client.patch(
         f"/api/v2/pins/{pin_id}", json={"title": "Updated Title"}, headers=headers
@@ -93,7 +96,6 @@ async def test_pin_create_with_tags(client: AsyncClient, fake_image: bytes):
     token = login_response.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
-    # Unified with conftest.py's mock_s3_service
     response = await client.post(
         "/api/v2/pins/",
         data={"title": "Tagged Pin", "tags": ["nature", "travel"]},
@@ -106,6 +108,38 @@ async def test_pin_create_with_tags(client: AsyncClient, fake_image: bytes):
     returned_tag_names = {t["name"] for t in data["tags"]}
     assert "nature" in returned_tag_names
     assert "travel" in returned_tag_names
+
+
+@pytest.mark.asyncio
+async def test_pin_create_with_generate_ai_description(
+    client: AsyncClient, fake_image: bytes
+):
+    await client.post(
+        "/api/v2/auth/register",
+        json={
+            "username": "pin_ai_desc_tester",
+            "email": "pin_ai_desc@example.com",
+            "password": "password",
+        },
+    )
+    login_response = await client.post(
+        "/api/v2/auth/login",
+        data={"username": "pin_ai_desc_tester", "password": "password"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+
+    token = login_response.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    response = await client.post(
+        "/api/v2/pins/",
+        data={"title": "AI Pin", "generate_ai_description": "true"},
+        files={"image": ("test.jpg", io.BytesIO(fake_image), "image/jpeg")},
+        headers=headers,
+    )
+
+    assert response.status_code == 201
+    assert response.json()["description"] == "AI description for AI Pin"
 
 
 @pytest.mark.asyncio

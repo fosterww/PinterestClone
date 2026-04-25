@@ -3,9 +3,12 @@ from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from redis.asyncio import Redis
 
+from ai.service import AIService
 from database import get_db
 from core.security.session import SessionService
 from core.infra.cache import CacheService
+from core.config import settings
+from core.infra.openai import OpenAIClient
 from core.infra.s3 import S3Service
 from core.infra.comment_filter import CommentFilter
 from notification.service import NotificationService
@@ -57,6 +60,7 @@ def get_tag_service(db: AsyncSession = Depends(get_db)) -> TagService:
     return TagService(db)
 
 
+@lru_cache()
 def get_gemini_service() -> GeminiService:
     return GeminiService()
 
@@ -83,6 +87,19 @@ def get_cache_service(redis: Redis = Depends(get_redis)) -> CacheService:
 
 async def get_s3_service() -> S3Service:
     return S3Service()
+
+
+@lru_cache()
+def get_openai_client() -> OpenAIClient:
+    return OpenAIClient(settings.openai_api_key)
+
+
+def get_ai_service(
+    db: AsyncSession = Depends(get_db),
+    s3_service: S3Service = Depends(get_s3_service),
+    openai_client: OpenAIClient = Depends(get_openai_client),
+) -> AIService:
+    return AIService(s3_service, openai_client, db)
 
 
 def get_notification_service(

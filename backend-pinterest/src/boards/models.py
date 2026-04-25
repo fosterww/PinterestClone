@@ -73,6 +73,18 @@ class PinModel(Base):
         viewonly=True,
     )
 
+class GeneratedPinModel(Base):
+    __tablename__ = "generated_pins"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    image_url: Mapped[str] = mapped_column(String(255), nullable=False)
+    prompt: Mapped[str] = mapped_column(String(1000), nullable=False)
+    style: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(nullable=False)
+
+    user: Mapped["UserModel"] = relationship("UserModel", back_populates="generated_pins")
 
 class BoardModel(Base):
     __tablename__ = "boards"

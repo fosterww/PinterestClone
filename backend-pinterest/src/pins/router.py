@@ -47,16 +47,25 @@ router = APIRouter()
 @limiter.limit("5/minute")
 async def create_new_pin(
     request: Request,
-    image: UploadFile = File(...),
+    image: UploadFile | None = File(None),
     title: str = Form(...),
     description: Optional[str] = Form(None),
     link_url: Optional[str] = Form(None),
+    generate_ai_description: bool = Form(False),
+    generated_pin_id: uuid.UUID | None = Form(None),
     tags: Annotated[list[str], Form()] = [],
     current_user: UserModel = Depends(get_current_user),
     service: PinService = Depends(get_pin_service),
 ) -> PinListResponse:
     """Create a new pin."""
-    data = PinCreate(title=title, description=description, link_url=link_url, tags=tags)
+    data = PinCreate(
+        title=title,
+        description=description,
+        link_url=link_url,
+        tags=tags,
+        generate_ai_description=generate_ai_description,
+        generated_pin_id=generated_pin_id,
+    )
     return await service.create_pin(image, current_user, data)
 
 

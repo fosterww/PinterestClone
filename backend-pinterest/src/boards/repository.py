@@ -76,6 +76,7 @@ class BoardRepository:
                 .options(
                     joinedload(BoardModel.user),
                     selectinload(BoardModel.pins).selectinload(PinModel.tags),
+                    selectinload(BoardModel.pins).selectinload(PinModel.user),
                     selectinload(BoardModel.pins)
                     .selectinload(PinModel.comments)
                     .selectinload(PinCommentModel.user),

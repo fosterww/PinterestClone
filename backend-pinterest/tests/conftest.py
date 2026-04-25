@@ -127,6 +127,25 @@ def mock_s3_service():
         async def upload_image_to_s3(self, image):
             return "http://mock-s3-url.com/image.jpg"
 
+        async def upload_bytes_to_s3(
+            self,
+            content: bytes,
+            content_type: str = "image/png",
+            folder: str = "generated",
+            extension: str = "png",
+        ):
+            return f"http://mock-s3-url.com/{folder}/image.{extension}"
+
+        async def download_bytes_from_url(self, url: str):
+            return (
+                b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+                b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\x0bIDAT\x08\xd7c"
+                b"\x60\x00\x02\x00\x00\x05\x00\x01^\xf3*:\x00\x00\x00\x00IEND\xaeB`\x82"
+            )
+
+        async def delete_bytes_from_s3(self, url: str):
+            pass
+
     return MockS3Service()
 
 
@@ -152,6 +171,9 @@ async def client(
             def generate_tags(self, image_bytes, title, description):
                 return ["mock_tag1", "mock_tag2"]
 
+            def generate_description(self, image_bytes, title):
+                return f"AI description for {title}"
+
         return MockGeminiService()
 
     def override_get_comment_filter():
@@ -161,13 +183,25 @@ async def client(
 
         return MockCommentFilter()
 
-    from core.dependencies import get_cache_service, get_gemini_service
+    def override_get_openai_client():
+        class MockOpenAIClient:
+            def generate_image(self, prompt: str, number_of_images: int = 1):
+                one_pixel_png = (
+                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNgAAIAAAUA"
+                    "AV7zKjoAAAAASUVORK5CYII="
+                )
+                return [{"b64_json": one_pixel_png} for _ in range(number_of_images)]
+
+        return MockOpenAIClient()
+
+    from core.dependencies import get_cache_service, get_gemini_service, get_openai_client
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_session_service] = override_get_session_service
     app.dependency_overrides[get_cache_service] = override_get_cache_service
     app.dependency_overrides[get_s3_service] = override_get_s3_service
     app.dependency_overrides[get_gemini_service] = override_get_gemini_service
+    app.dependency_overrides[get_openai_client] = override_get_openai_client
     app.dependency_overrides[get_comment_filter] = override_get_comment_filter
 
     async with AsyncClient(
@@ -216,8 +250,23 @@ def mock_gemini_service():
         def generate_tags(self, image_bytes, title, description):
             return ["mock_tag_fixture"]
 
+        def generate_description(self, image_bytes, title):
+            return f"AI description for {title}"
+
     return MockGeminiService()
 
+
+@pytest.fixture
+def mock_openai_service():
+    class MockOpenAIService:
+        def generate_image(self, prompt: str, number_of_images: int = 1):
+            one_pixel_png = (
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNgAAIAAAUA"
+                "AV7zKjoAAAAASUVORK5CYII="
+            )
+            return [{"b64_json": one_pixel_png} for _ in range(number_of_images)]
+
+    return MockOpenAIService()
 
 @pytest.fixture
 def pin_svc(

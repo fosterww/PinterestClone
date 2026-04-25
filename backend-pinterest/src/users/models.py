@@ -11,7 +11,13 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database import Base
 
 if TYPE_CHECKING:
-    from boards.models import BoardModel, PinModel, PinLikeModel, PinCommentModel
+    from boards.models import (
+        BoardModel,
+        PinModel,
+        PinLikeModel,
+        PinCommentModel,
+        GeneratedPinModel,
+    )
 
 
 user_follow_association = Table(
@@ -66,6 +72,9 @@ class UserModel(Base):
     )
     comments: Mapped[list["PinCommentModel"]] = relationship(
         "PinCommentModel", back_populates="user"
+    )
+    generated_pins: Mapped[list["GeneratedPinModel"]] = relationship(
+        "GeneratedPinModel", back_populates="user", cascade="all, delete-orphan"
     )
     refresh_tokens: Mapped[list["RefreshTokenModel"]] = relationship(
         "RefreshTokenModel", back_populates="user", cascade="all, delete"

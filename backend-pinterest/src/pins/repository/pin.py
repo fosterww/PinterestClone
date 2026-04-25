@@ -1,13 +1,16 @@
 import uuid
 from typing import List
+from datetime import datetime, timezone
+
 from sqlalchemy import select, update
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from core.exception import AppError, ConflictError, NotFoundError
+from core.exception import AppError, BadRequestError, ConflictError, NotFoundError
 from core.logger import logger
 from boards.models import (
+    GeneratedPinModel,
     PinModel,
     PinLikeModel,
     TagModel,
@@ -29,8 +32,9 @@ class PinRepository:
     ) -> PinModel:
         try:
             create_data = data.model_dump(exclude_unset=True)
-            if "tags" in create_data:
-                del create_data["tags"]
+            create_data.pop("tags", None)
+            create_data.pop("generate_ai_description", None)
+            create_data.pop("generated_pin_id", None)
             pin = PinModel(
                 owner_id=owner.id,
                 **create_data,
@@ -42,7 +46,7 @@ class PinRepository:
             result = await self.db.execute(
                 select(PinModel)
                 .where(PinModel.id == pin.id)
-                .options(selectinload(PinModel.tags))
+                .options(selectinload(PinModel.user), selectinload(PinModel.tags))
             )
             return result.scalar_one()
         except SQLAlchemyError:
@@ -60,7 +64,7 @@ class PinRepository:
         popularity: Popularity | None = None,
     ) -> List[PinModel]:
         try:
-            query = select(PinModel).options(selectinload(PinModel.tags))
+            query = select(PinModel).options(selectinload(PinModel.user), selectinload(PinModel.tags))
 
             if search:
                 query = query.where(PinModel.title.icontains(search))
@@ -89,7 +93,7 @@ class PinRepository:
             result = await self.db.execute(
                 select(PinModel)
                 .where(PinModel.id == pin_id)
-                .options(selectinload(PinModel.tags))
+                .options(selectinload(PinModel.user), selectinload(PinModel.tags))
             )
             return result.scalar_one_or_none()
         except SQLAlchemyError:
@@ -109,7 +113,7 @@ class PinRepository:
             result = await self.db.execute(
                 select(PinModel)
                 .where(PinModel.id.in_(uuids))
-                .options(selectinload(PinModel.tags))
+                .options(selectinload(PinModel.user), selectinload(PinModel.tags))
             )
             return result.scalars().all()
         except SQLAlchemyError:
@@ -129,7 +133,7 @@ class PinRepository:
             result = await self.db.execute(
                 select(PinModel)
                 .where(PinModel.id == pin_id)
-                .options(selectinload(PinModel.tags))
+                .options(selectinload(PinModel.user), selectinload(PinModel.tags))
             )
             return result.scalar_one_or_none()
         except SQLAlchemyError:
@@ -142,7 +146,7 @@ class PinRepository:
                 select(PinModel)
                 .join(UserModel)
                 .where(UserModel.username == username)
-                .options(selectinload(PinModel.tags))
+                .options(selectinload(PinModel.user), selectinload(PinModel.tags))
                 .order_by(PinModel.created_at.desc())
             )
             return result.scalars().all()
@@ -199,7 +203,7 @@ class PinRepository:
             result = await self.db.execute(
                 select(PinModel)
                 .where(PinModel.id == pin.id)
-                .options(selectinload(PinModel.tags))
+                .options(selectinload(PinModel.user), selectinload(PinModel.tags))
             )
             return result.scalar_one()
         except IntegrityError:
@@ -219,3 +223,20 @@ class PinRepository:
             await self.db.rollback()
             logger.error(f"Database error while deleting pin: {pin.id}")
             raise AppError()
+
+    async def _get_generated_pin(
+        self, generated_pin_id: uuid.UUID, owner_id: uuid.UUID
+    ) -> GeneratedPinModel:
+        result = await self.db.execute(
+            select(GeneratedPinModel)
+            .where(GeneratedPinModel.id == generated_pin_id, GeneratedPinModel.user_id == owner_id)
+        )
+        generated_pin = result.scalar_one_or_none()
+        if generated_pin is None:
+            raise NotFoundError("Generated image not found")
+        expires_at = generated_pin.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at <= datetime.now(timezone.utc):
+            raise BadRequestError("Generated image has expired")
+        return generated_pin
