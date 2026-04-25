@@ -194,7 +194,11 @@ async def client(
 
         return MockOpenAIClient()
 
-    from core.dependencies import get_cache_service, get_gemini_service, get_openai_client
+    from core.dependencies import (
+        get_cache_service,
+        get_gemini_service,
+        get_openai_client,
+    )
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_session_service] = override_get_session_service
@@ -267,6 +271,7 @@ def mock_openai_service():
             return [{"b64_json": one_pixel_png} for _ in range(number_of_images)]
 
     return MockOpenAIService()
+
 
 @pytest.fixture
 def pin_svc(

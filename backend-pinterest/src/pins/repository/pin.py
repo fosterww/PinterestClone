@@ -64,7 +64,9 @@ class PinRepository:
         popularity: Popularity | None = None,
     ) -> List[PinModel]:
         try:
-            query = select(PinModel).options(selectinload(PinModel.user), selectinload(PinModel.tags))
+            query = select(PinModel).options(
+                selectinload(PinModel.user), selectinload(PinModel.tags)
+            )
 
             if search:
                 query = query.where(PinModel.title.icontains(search))
@@ -228,8 +230,10 @@ class PinRepository:
         self, generated_pin_id: uuid.UUID, owner_id: uuid.UUID
     ) -> GeneratedPinModel:
         result = await self.db.execute(
-            select(GeneratedPinModel)
-            .where(GeneratedPinModel.id == generated_pin_id, GeneratedPinModel.user_id == owner_id)
+            select(GeneratedPinModel).where(
+                GeneratedPinModel.id == generated_pin_id,
+                GeneratedPinModel.user_id == owner_id,
+            )
         )
         generated_pin = result.scalar_one_or_none()
         if generated_pin is None:

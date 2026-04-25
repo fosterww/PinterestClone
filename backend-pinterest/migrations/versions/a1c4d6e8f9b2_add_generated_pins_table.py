@@ -28,7 +28,9 @@ def upgrade() -> None:
         sa.Column("image_url", sa.String(length=255), nullable=False),
         sa.Column("prompt", sa.String(length=1000), nullable=False),
         sa.Column("style", sa.String(length=100), nullable=True),
-        sa.Column("created_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False
+        ),
         sa.Column("expires_at", sa.DateTime(), nullable=False),
         sa.ForeignKeyConstraint(
             ["user_id"], ["users.id"], name=op.f("fk_generated_pins_user_id_users")

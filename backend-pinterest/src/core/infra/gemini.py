@@ -42,7 +42,7 @@ class GeminiService:
     def generate_description(self, image_bytes: bytes, title: str) -> str:
         prompt_parts = [
             f"Title: {title}",
-            'Task: Analyze the image base on title provided above. Return ONLY a plain text description of the image in 1-2 sentences. Do not include any other text.',
+            "Task: Analyze the image base on title provided above. Return ONLY a plain text description of the image in 1-2 sentences. Do not include any other text.",
             types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
         ]
 

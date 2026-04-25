@@ -95,7 +95,9 @@ class PinService:
 
         generated_pin: GeneratedPinModel | None = None
         if data.generated_pin_id is not None:
-            generated_pin = await self.repo._get_generated_pin(data.generated_pin_id, owner.id)
+            generated_pin = await self.repo._get_generated_pin(
+                data.generated_pin_id, owner.id
+            )
             original_content = await self.s3_service.download_bytes_from_url(
                 generated_pin.image_url
             )

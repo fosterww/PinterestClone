@@ -73,6 +73,7 @@ class PinModel(Base):
         viewonly=True,
     )
 
+
 class GeneratedPinModel(Base):
     __tablename__ = "generated_pins"
 
@@ -84,7 +85,10 @@ class GeneratedPinModel(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     expires_at: Mapped[datetime] = mapped_column(nullable=False)
 
-    user: Mapped["UserModel"] = relationship("UserModel", back_populates="generated_pins")
+    user: Mapped["UserModel"] = relationship(
+        "UserModel", back_populates="generated_pins"
+    )
+
 
 class BoardModel(Base):
     __tablename__ = "boards"
