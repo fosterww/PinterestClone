@@ -4,6 +4,7 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from boards.models import PinModerationStatus, PinProcessingState
 from tags.schemas import TagResponse
 from users.schemas import UserSearchResponse
 
@@ -58,6 +59,13 @@ class PinListResponse(PinBase):
     image_url: str
     tags: list[TagResponse]
     created_at: datetime
+    processing_state: PinProcessingState
+    moderation_status: PinModerationStatus
+    image_width: int | None = None
+    image_height: int | None = None
+    dominant_colors: list[str] | None = None
+    is_duplicate: bool = False
+    duplicate_of_pin_id: uuid.UUID | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

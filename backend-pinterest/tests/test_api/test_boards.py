@@ -1,15 +1,28 @@
 import pytest
 from httpx import AsyncClient
 import io
+import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from boards.models import BoardModel
+from boards.models import BoardModel, PinModel, PinModerationStatus, PinProcessingState
 
 
 @pytest.fixture
 def fake_image():
     return b"fake_image_content"
+
+
+async def _trust_pin(db_session: AsyncSession, pin_id: str) -> None:
+    result = await db_session.execute(
+        select(PinModel).where(PinModel.id == uuid.UUID(pin_id))
+    )
+    pin = result.scalar_one()
+    pin.processing_state = PinProcessingState.INDEXED
+    pin.moderation_status = PinModerationStatus.APPROVED
+    pin.is_duplicate = False
+    pin.duplicate_of_pin_id = None
+    await db_session.flush()
 
 
 @pytest.mark.asyncio
@@ -60,6 +73,7 @@ async def test_boards_flow(
         f"/api/v2/boards/{board_id}/pins/{pin_id}", headers=headers
     )
     assert response.status_code == 201
+    await _trust_pin(db_session, pin_id)
 
     db_session.expire_all()
 
@@ -92,6 +106,48 @@ async def test_boards_flow(
     response = await client.get(f"/api/v2/boards/{board_id}")
     data = response.json()
     assert all(p["id"] != pin_id for p in data["pins"])
+
+
+@pytest.mark.asyncio
+async def test_public_board_hides_pending_pins(
+    client: AsyncClient, fake_image: bytes, db_session: AsyncSession
+):
+    await client.post(
+        "/api/v2/auth/register",
+        json={
+            "username": "board_pending_owner",
+            "email": "board_pending_owner@example.com",
+            "password": "password",
+        },
+    )
+    login_response = await client.post(
+        "/api/v2/auth/login",
+        data={"username": "board_pending_owner", "password": "password"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    headers = {"Authorization": f"Bearer {login_response.json()['access_token']}"}
+
+    board_response = await client.post(
+        "/api/v2/boards/",
+        json={"title": "Pending Pins"},
+        headers=headers,
+    )
+    board_id = board_response.json()["id"]
+    pin_response = await client.post(
+        "/api/v2/pins/",
+        data={"title": "Pending Board Pin"},
+        files={"image": ("test.jpg", io.BytesIO(fake_image), "image/jpeg")},
+        headers=headers,
+    )
+    pin_id = pin_response.json()["id"]
+    await client.post(f"/api/v2/boards/{board_id}/pins/{pin_id}", headers=headers)
+
+    db_session.expire_all()
+    anonymous_response = await client.get(f"/api/v2/boards/{board_id}")
+    owner_response = await client.get(f"/api/v2/boards/{board_id}", headers=headers)
+
+    assert pin_id not in {pin["id"] for pin in anonymous_response.json()["pins"]}
+    assert pin_id in {pin["id"] for pin in owner_response.json()["pins"]}
 
 
 @pytest.mark.asyncio

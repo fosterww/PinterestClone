@@ -2,6 +2,12 @@ import pytest
 from httpx import AsyncClient
 from unittest.mock import patch, AsyncMock
 import io
+import uuid
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from boards.models import PinModel, PinModerationStatus, PinProcessingState
 
 
 @pytest.fixture
@@ -9,8 +15,24 @@ def fake_image():
     return b"fake_image_content"
 
 
+async def _trust_pin_ids(db_session: AsyncSession, *pin_ids: str) -> None:
+    ids = [uuid.UUID(pin_id) for pin_id in pin_ids]
+    result = await db_session.execute(select(PinModel).where(PinModel.id.in_(ids)))
+    for pin in result.scalars().all():
+        pin.processing_state = PinProcessingState.INDEXED
+        pin.moderation_status = PinModerationStatus.APPROVED
+        pin.is_duplicate = False
+        pin.duplicate_of_pin_id = None
+    await db_session.flush()
+
+
 @pytest.mark.asyncio
-async def test_pin_crud_flow(client: AsyncClient, fake_image: bytes, mock_celery_tasks):
+async def test_pin_crud_flow(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    fake_image: bytes,
+    mock_celery_tasks,
+):
     mock_index_task, mock_delete_task = mock_celery_tasks
     await client.post(
         "/api/v2/auth/register",
@@ -44,13 +66,11 @@ async def test_pin_crud_flow(client: AsyncClient, fake_image: bytes, mock_celery
     assert data["title"] == "My Test Pin"
     assert data["image_url"] == "http://mock-s3-url.com/image.jpg"
     assert data["user"]["username"] == "pin_tester"
-    returned_tag_names = {t["name"] for t in data["tags"]}
-    assert "mock_tag1" in returned_tag_names
-    assert "mock_tag2" in returned_tag_names
+    assert data["tags"] == []
+    assert data["processing_state"] == "uploaded"
     pin_id = data["id"]
-    mock_index_task.assert_called_once()
-    args, _ = mock_index_task.call_args
-    assert args[0] == pin_id
+    mock_index_task.assert_not_called()
+    await _trust_pin_ids(db_session, pin_id)
 
     response = await client.get("/api/v2/pins/")
     assert response.status_code == 200
@@ -75,6 +95,19 @@ async def test_pin_crud_flow(client: AsyncClient, fake_image: bytes, mock_celery
     response = await client.get(f"/api/v2/pins/{pin_id}", headers=headers)
     assert response.status_code == 404
     assert response.json()["detail"] == "Pin not found"
+
+
+@pytest.mark.asyncio
+async def test_list_pins_hides_pending_pins(client: AsyncClient, fake_image: bytes):
+    headers = await _register_and_login(
+        client, "pending_hidden_user", "pending_hidden@example.com"
+    )
+    pin = await _create_pin(client, headers, "Pending Hidden", fake_image=fake_image)
+
+    response = await client.get("/api/v2/pins/")
+
+    assert response.status_code == 200
+    assert pin["id"] not in {item["id"] for item in response.json()}
 
 
 @pytest.mark.asyncio
@@ -154,11 +187,14 @@ async def test_pin_create_with_generate_ai_description(
     )
 
     assert response.status_code == 201
-    assert response.json()["description"] == "AI description for AI Pin"
+    assert response.json()["description"] is None
+    assert response.json()["processing_state"] == "uploaded"
 
 
 @pytest.mark.asyncio
-async def test_get_related_pins(client: AsyncClient, fake_image: bytes):
+async def test_get_related_pins(
+    client: AsyncClient, db_session: AsyncSession, fake_image: bytes
+):
     await client.post(
         "/api/v2/auth/register",
         json={
@@ -197,6 +233,7 @@ async def test_get_related_pins(client: AsyncClient, fake_image: bytes):
     p1_id = p1.json()["id"]
     p2_id = p2.json()["id"]
     p3_id = p3.json()["id"]
+    await _trust_pin_ids(db_session, p1_id, p2_id, p3_id)
 
     with (
         patch(
@@ -314,13 +351,16 @@ async def test_api_like_requires_auth(client: AsyncClient, fake_image: bytes):
 
 
 @pytest.mark.asyncio
-async def test_api_search_pins_by_title(client: AsyncClient, fake_image: bytes):
+async def test_api_search_pins_by_title(
+    client: AsyncClient, db_session: AsyncSession, fake_image: bytes
+):
     headers = await _register_and_login(
         client, "search_user", "search_user@example.com"
     )
-    await _create_pin(client, headers, "Aurora Borealis", fake_image=fake_image)
-    await _create_pin(client, headers, "Desert Sand", fake_image=fake_image)
-    await _create_pin(client, headers, "Aurora Valley", fake_image=fake_image)
+    pin1 = await _create_pin(client, headers, "Aurora Borealis", fake_image=fake_image)
+    pin2 = await _create_pin(client, headers, "Desert Sand", fake_image=fake_image)
+    pin3 = await _create_pin(client, headers, "Aurora Valley", fake_image=fake_image)
+    await _trust_pin_ids(db_session, pin1["id"], pin2["id"], pin3["id"])
 
     response = await client.get("/api/v2/pins/?search=Aurora")
     assert response.status_code == 200
@@ -331,23 +371,26 @@ async def test_api_search_pins_by_title(client: AsyncClient, fake_image: bytes):
 
 
 @pytest.mark.asyncio
-async def test_api_filter_pins_by_tag(client: AsyncClient, fake_image: bytes):
+async def test_api_filter_pins_by_tag(
+    client: AsyncClient, db_session: AsyncSession, fake_image: bytes
+):
     headers = await _register_and_login(
         client, "tag_filter_user", "tag_filter@example.com"
     )
-    await _create_pin(
+    pin1 = await _create_pin(
         client, headers, "Forest Walk", tags=["forest"], fake_image=fake_image
     )
-    await _create_pin(
+    pin2 = await _create_pin(
         client, headers, "City Lights", tags=["city"], fake_image=fake_image
     )
-    await _create_pin(
+    pin3 = await _create_pin(
         client,
         headers,
         "Forest City Blend",
         tags=["forest", "city"],
         fake_image=fake_image,
     )
+    await _trust_pin_ids(db_session, pin1["id"], pin2["id"], pin3["id"])
 
     response = await client.get("/api/v2/pins/?tags=forest")
     assert response.status_code == 200
@@ -358,11 +401,14 @@ async def test_api_filter_pins_by_tag(client: AsyncClient, fake_image: bytes):
 
 
 @pytest.mark.asyncio
-async def test_api_filter_pins_by_popularity(client: AsyncClient, fake_image: bytes):
+async def test_api_filter_pins_by_popularity(
+    client: AsyncClient, db_session: AsyncSession, fake_image: bytes
+):
     headers = await _register_and_login(client, "pop_user", "pop_user@example.com")
     headers2 = await _register_and_login(client, "pop_user2", "pop_user2@example.com")
     low = await _create_pin(client, headers, "Low Pop", fake_image=fake_image)
     high = await _create_pin(client, headers, "High Pop", fake_image=fake_image)
+    await _trust_pin_ids(db_session, low["id"], high["id"])
 
     await client.post(f"/api/v2/pins/{high['id']}/like", headers=headers)
     await client.post(f"/api/v2/pins/{high['id']}/like", headers=headers2)
@@ -402,17 +448,20 @@ async def test_api_filter_pins_created_at_oldest(
 
 
 @pytest.mark.asyncio
-async def test_api_search_and_tag_combined(client: AsyncClient, fake_image: bytes):
+async def test_api_search_and_tag_combined(
+    client: AsyncClient, db_session: AsyncSession, fake_image: bytes
+):
     headers = await _register_and_login(client, "combo_user", "combo_user@example.com")
-    await _create_pin(
+    pin1 = await _create_pin(
         client, headers, "River Sunset", tags=["water"], fake_image=fake_image
     )
-    await _create_pin(
+    pin2 = await _create_pin(
         client, headers, "River Storm", tags=["storm"], fake_image=fake_image
     )
-    await _create_pin(
+    pin3 = await _create_pin(
         client, headers, "Lake Sunset", tags=["water"], fake_image=fake_image
     )
+    await _trust_pin_ids(db_session, pin1["id"], pin2["id"], pin3["id"])
 
     response = await client.get("/api/v2/pins/?search=River&tags=water")
     assert response.status_code == 200

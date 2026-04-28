@@ -1,8 +1,12 @@
 import pytest
 from httpx import AsyncClient
 import io
+import uuid
+
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from boards.models import PinModel, PinModerationStatus, PinProcessingState
 from users.repository import UserRepository
 
 
@@ -51,17 +55,33 @@ def fake_image():
     return b"fake_image_content"
 
 
+async def _trust_pin_ids(db_session: AsyncSession, *pin_ids: str) -> None:
+    ids = [uuid.UUID(pin_id) for pin_id in pin_ids]
+    result = await db_session.execute(select(PinModel).where(PinModel.id.in_(ids)))
+    for pin in result.scalars().all():
+        pin.processing_state = PinProcessingState.INDEXED
+        pin.moderation_status = PinModerationStatus.APPROVED
+        pin.is_duplicate = False
+        pin.duplicate_of_pin_id = None
+    await db_session.flush()
+
+
 @pytest.mark.asyncio
-async def test_api_personalized_feed(client: AsyncClient, fake_image: bytes):
+async def test_api_personalized_feed(
+    client: AsyncClient, db_session: AsyncSession, fake_image: bytes
+):
     headers = await _register_and_login(client, "personal_user", "personal@example.com")
 
-    await _create_pin(
+    pin1 = await _create_pin(
         client, headers, "Mountain", tags=["nature"], fake_image=fake_image
     )
-    await _create_pin(client, headers, "City", tags=["urban"], fake_image=fake_image)
+    pin2 = await _create_pin(
+        client, headers, "City", tags=["urban"], fake_image=fake_image
+    )
     pin3 = await _create_pin(
         client, headers, "Forest", tags=["nature"], fake_image=fake_image
     )
+    await _trust_pin_ids(db_session, pin1["id"], pin2["id"], pin3["id"])
 
     response = await client.get(f"/api/v2/pins/{pin3['id']}", headers=headers)
     assert response.status_code == 200
@@ -93,14 +113,14 @@ async def test_api_personalized_feed_prefers_followed_users(
     )
     await UserRepository(db_session).follow_user(follower_user.id, "feed_followed")
 
-    await _create_pin(
+    pin1 = await _create_pin(
         client,
         followed_headers,
         "Followed New",
         tags=["travel"],
         fake_image=fake_image,
     )
-    await _create_pin(
+    pin2 = await _create_pin(
         client,
         followed_headers,
         "Followed Old",
@@ -114,13 +134,14 @@ async def test_api_personalized_feed_prefers_followed_users(
         tags=["nature"],
         fake_image=fake_image,
     )
-    await _create_pin(
+    pin4 = await _create_pin(
         client,
         follower_headers,
         "Another Own",
         tags=["nature"],
         fake_image=fake_image,
     )
+    await _trust_pin_ids(db_session, pin1["id"], pin2["id"], own_pin["id"], pin4["id"])
 
     response = await client.get(
         f"/api/v2/pins/{own_pin['id']}", headers=follower_headers
@@ -154,20 +175,21 @@ async def test_api_personalized_feed_backfills_with_latest_global_pins(
     )
     await UserRepository(db_session).follow_user(follower_user.id, "global_followed")
 
-    await _create_pin(
+    pin1 = await _create_pin(
         client,
         followed_headers,
         "Only Followed Pin",
         tags=["travel"],
         fake_image=fake_image,
     )
-    await _create_pin(
+    pin2 = await _create_pin(
         client,
         global_headers,
         "Newest Global Pin",
         tags=["design"],
         fake_image=fake_image,
     )
+    await _trust_pin_ids(db_session, pin1["id"], pin2["id"])
 
     response = await client.get("/api/v2/pins/personalized", headers=follower_headers)
     assert response.status_code == 200

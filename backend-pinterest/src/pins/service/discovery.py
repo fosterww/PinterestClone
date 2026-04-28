@@ -54,7 +54,7 @@ class DiscoveryService:
         if cached_pins:
             return cached_pins
         base_pin = await self.pin_repo.get_pin_by_id(pin_id)
-        if not base_pin or not base_pin.tags:
+        if not base_pin or not self.pin_repo.is_trusted(base_pin) or not base_pin.tags:
             return []
 
         tag_ids = [tag.id for tag in base_pin.tags]

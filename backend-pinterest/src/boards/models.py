@@ -5,7 +5,18 @@ from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import String, func, ForeignKey, Table, Column, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    JSON,
+    String,
+    func,
+    Table,
+    Column,
+    UniqueConstraint,
+)
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy import UUID as SAUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -19,6 +30,25 @@ if TYPE_CHECKING:
 class BoardVisibility(str, Enum):
     PUBLIC = "public"
     SECRET = "secret"
+
+
+class PinProcessingState(str, Enum):
+    UPLOADED = "uploaded"
+    TAGGED = "tagged"
+    INDEXED = "indexed"
+    FAILED = "failed"
+
+
+class PinModerationStatus(str, Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    HIDDEN = "hidden"
+    FAILED = "failed"
+
+
+class PinEditSource(str, Enum):
+    USER = "user"
+    SYSTEM = "system"
 
 
 board_pin_association = Table(
@@ -53,6 +83,53 @@ class PinModel(Base):
     updated_at: Mapped[datetime] = mapped_column(
         server_default=func.now(), onupdate=func.now()
     )
+    processing_state: Mapped[PinProcessingState] = mapped_column(
+        SAEnum(
+            PinProcessingState,
+            values_callable=lambda enum: [item.value for item in enum],
+            name="pinprocessingstate",
+        ),
+        default=PinProcessingState.UPLOADED,
+        server_default=PinProcessingState.UPLOADED.value,
+        nullable=False,
+    )
+    moderation_status: Mapped[PinModerationStatus] = mapped_column(
+        SAEnum(
+            PinModerationStatus,
+            values_callable=lambda enum: [item.value for item in enum],
+            name="pinmoderationstatus",
+        ),
+        default=PinModerationStatus.PENDING,
+        server_default=PinModerationStatus.PENDING.value,
+        nullable=False,
+    )
+    tagging_attempts: Mapped[int] = mapped_column(
+        Integer, server_default="0", nullable=False
+    )
+    indexing_attempts: Mapped[int] = mapped_column(
+        Integer, server_default="0", nullable=False
+    )
+    last_processing_error: Mapped[str | None] = mapped_column(
+        String(1000), nullable=True
+    )
+    tagged_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    indexed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    image_width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    image_height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    dominant_colors: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    file_hash_sha256: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, index=True
+    )
+    is_duplicate: Mapped[bool] = mapped_column(
+        Boolean, server_default="false", nullable=False
+    )
+    duplicate_of_pin_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("pins.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     likes: Mapped[list["PinLikeModel"]] = relationship(
         "PinLikeModel", back_populates="pin"
@@ -72,6 +149,12 @@ class PinModel(Base):
         primaryjoin="and_(PinModel.id == PinCommentModel.pin_id, PinCommentModel.parent_id == None)",
         viewonly=True,
     )
+    edit_history: Mapped[list["PinEditHistoryModel"]] = relationship(
+        "PinEditHistoryModel",
+        back_populates="pin",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
 
 class GeneratedPinModel(Base):
@@ -88,6 +171,36 @@ class GeneratedPinModel(Base):
     user: Mapped["UserModel"] = relationship(
         "UserModel", back_populates="generated_pins"
     )
+
+
+class PinEditHistoryModel(Base):
+    __tablename__ = "pin_edit_history"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    pin_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("pins.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    source: Mapped[PinEditSource] = mapped_column(
+        SAEnum(
+            PinEditSource,
+            values_callable=lambda enum: [item.value for item in enum],
+            name="pineditsource",
+        ),
+        default=PinEditSource.SYSTEM,
+        server_default=PinEditSource.SYSTEM.value,
+        nullable=False,
+    )
+    changed_fields: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    before: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    after: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    pin: Mapped["PinModel"] = relationship("PinModel", back_populates="edit_history")
+    actor: Mapped["UserModel | None"] = relationship("UserModel")
 
 
 class BoardModel(Base):

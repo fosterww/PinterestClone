@@ -220,6 +220,7 @@ async def client(
 def mock_celery_tasks():
     with (
         patch("pins.task.index_image_task.delay") as mock_index,
+        patch("pins.task.tag_pin_image_task.delay"),
         patch("pins.task.delete_image_task.delay") as mock_delete,
         patch("notification.task.send_notification_email_task.delay"),
     ):

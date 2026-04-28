@@ -7,7 +7,20 @@ from sqlalchemy.orm import selectinload
 
 from core.exception import AppError
 from core.logger import logger
-from boards.models import PinModel, pin_tag_association
+from boards.models import (
+    PinModel,
+    PinModerationStatus,
+    PinProcessingState,
+    pin_tag_association,
+)
+
+
+def trusted_pin_filters():
+    return (
+        PinModel.processing_state == PinProcessingState.INDEXED,
+        PinModel.moderation_status == PinModerationStatus.APPROVED,
+        PinModel.is_duplicate.is_(False),
+    )
 
 
 class DiscoverRepository:
@@ -23,6 +36,7 @@ class DiscoverRepository:
                 .join(pin_tag_association)
                 .where(pin_tag_association.c.tag_id.in_(tag_ids))
                 .where(PinModel.id != exclude_pin_id)
+                .where(*trusted_pin_filters())
                 .group_by(PinModel.id)
                 .order_by(
                     func.count(pin_tag_association.c.tag_id).desc(),
@@ -53,6 +67,7 @@ class DiscoverRepository:
                 select(PinModel)
                 .options(selectinload(PinModel.user), selectinload(PinModel.tags))
                 .where(PinModel.owner_id.in_(followed_user_ids))
+                .where(*trusted_pin_filters())
                 .order_by(PinModel.created_at.desc())
             )
 
@@ -81,6 +96,7 @@ class DiscoverRepository:
                 select(PinModel)
                 .join(pin_tag_association)
                 .where(pin_tag_association.c.tag_id.in_(tag_ids))
+                .where(*trusted_pin_filters())
                 .group_by(PinModel.id)
                 .order_by(
                     func.count(pin_tag_association.c.tag_id).desc(),
@@ -106,6 +122,7 @@ class DiscoverRepository:
             query = (
                 select(PinModel)
                 .options(selectinload(PinModel.user), selectinload(PinModel.tags))
+                .where(*trusted_pin_filters())
                 .order_by(PinModel.created_at.desc())
             )
             if exclude_pin_ids:

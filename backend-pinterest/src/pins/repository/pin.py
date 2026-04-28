@@ -2,7 +2,7 @@ import uuid
 from typing import List
 from datetime import datetime, timezone
 
-from sqlalchemy import select, update
+from sqlalchemy import select, text, update
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -13,6 +13,10 @@ from boards.models import (
     GeneratedPinModel,
     PinModel,
     PinLikeModel,
+    PinEditHistoryModel,
+    PinEditSource,
+    PinModerationStatus,
+    PinProcessingState,
     TagModel,
 )
 from users.models import UserModel
@@ -27,19 +31,42 @@ class PinRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    @staticmethod
+    def trusted_pin_filters():
+        return (
+            PinModel.processing_state == PinProcessingState.INDEXED,
+            PinModel.moderation_status == PinModerationStatus.APPROVED,
+            PinModel.is_duplicate.is_(False),
+        )
+
+    @staticmethod
+    def is_trusted(pin: PinModel) -> bool:
+        return (
+            pin.processing_state == PinProcessingState.INDEXED
+            and pin.moderation_status == PinModerationStatus.APPROVED
+            and not pin.is_duplicate
+        )
+
     async def create_pin(
-        self, owner: UserModel, data: PinCreate, image_url: str, tags: list[TagModel]
+        self,
+        owner: UserModel,
+        data: PinCreate,
+        image_url: str,
+        tags: list[TagModel],
+        metadata: dict | None = None,
     ) -> PinModel:
         try:
             create_data = data.model_dump(exclude_unset=True)
             create_data.pop("tags", None)
             create_data.pop("generate_ai_description", None)
             create_data.pop("generated_pin_id", None)
+            metadata = metadata or {}
             pin = PinModel(
                 owner_id=owner.id,
                 **create_data,
                 image_url=image_url,
                 tags=tags,
+                **metadata,
             )
             self.db.add(pin)
             await self.db.flush()
@@ -52,6 +79,62 @@ class PinRepository:
         except SQLAlchemyError:
             await self.db.rollback()
             logger.error(f"Database error while creating pin: {owner.id}")
+            raise AppError()
+
+    async def get_first_pin_by_hash(self, file_hash_sha256: str) -> PinModel | None:
+        try:
+            result = await self.db.execute(
+                select(PinModel)
+                .where(PinModel.file_hash_sha256 == file_hash_sha256)
+                .order_by(PinModel.created_at.asc())
+            )
+            return result.scalars().first()
+        except SQLAlchemyError:
+            logger.exception(
+                f"Database error while fetching duplicate pin: {file_hash_sha256}"
+            )
+            raise AppError()
+
+    async def lock_pin_file_hash(self, file_hash_sha256: str) -> None:
+        bind = self.db.get_bind()
+        if bind.dialect.name != "postgresql":
+            return
+        try:
+            await self.db.execute(
+                text("SELECT pg_advisory_xact_lock(hashtext(:file_hash_sha256))"),
+                {"file_hash_sha256": file_hash_sha256},
+            )
+        except SQLAlchemyError:
+            logger.exception(f"Database error while locking pin hash: {file_hash_sha256}")
+            raise AppError()
+
+    async def add_pin_edit_history(
+        self,
+        pin_id: uuid.UUID,
+        *,
+        actor_user_id: uuid.UUID | None = None,
+        source: PinEditSource = PinEditSource.SYSTEM,
+        changed_fields: list[str] | None = None,
+        before: dict | None = None,
+        after: dict | None = None,
+        reason: str | None = None,
+    ) -> PinEditHistoryModel:
+        try:
+            history = PinEditHistoryModel(
+                pin_id=pin_id,
+                actor_user_id=actor_user_id,
+                source=source,
+                changed_fields=changed_fields,
+                before=before,
+                after=after,
+                reason=reason,
+            )
+            self.db.add(history)
+            await self.db.flush()
+            return history
+        except SQLAlchemyError:
+            await self.db.rollback()
+            logger.error(f"Database error while creating pin history: {pin_id}")
             raise AppError()
 
     async def get_pins(
@@ -67,6 +150,7 @@ class PinRepository:
             query = select(PinModel).options(
                 selectinload(PinModel.user), selectinload(PinModel.tags)
             )
+            query = query.where(*self.trusted_pin_filters())
 
             if search:
                 query = query.where(PinModel.title.icontains(search))
@@ -115,6 +199,7 @@ class PinRepository:
             result = await self.db.execute(
                 select(PinModel)
                 .where(PinModel.id.in_(uuids))
+                .where(*self.trusted_pin_filters())
                 .options(selectinload(PinModel.user), selectinload(PinModel.tags))
             )
             return result.scalars().all()
@@ -148,6 +233,7 @@ class PinRepository:
                 select(PinModel)
                 .join(UserModel)
                 .where(UserModel.username == username)
+                .where(*self.trusted_pin_filters())
                 .options(selectinload(PinModel.user), selectinload(PinModel.tags))
                 .order_by(PinModel.created_at.desc())
             )

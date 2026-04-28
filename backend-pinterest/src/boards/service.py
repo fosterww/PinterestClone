@@ -2,6 +2,7 @@ import uuid
 from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import set_committed_value
 
 from core.exception import AppError, NotFoundError, ForbiddenError
 from core.security.session import SessionService
@@ -57,6 +58,12 @@ class BoardService:
         is_owner = current_user is not None and result.owner_id == current_user.id
         if result.visibility == BoardVisibility.SECRET and not is_owner:
             raise ForbiddenError("This board is private")
+        if not is_owner:
+            set_committed_value(
+                result,
+                "pins",
+                [pin for pin in result.pins if self.pin_service.repo.is_trusted(pin)],
+            )
         return result
 
     async def get_visible_boards_for_user(

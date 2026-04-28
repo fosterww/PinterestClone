@@ -1,7 +1,12 @@
 import io
+import uuid
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from boards.models import PinModel, PinModerationStatus, PinProcessingState
 
 
 async def _register_and_login(client: AsyncClient, username: str, email: str) -> dict:
@@ -23,9 +28,20 @@ def fake_image():
     return b"fake_image_content"
 
 
+async def _trust_pin_ids(db_session: AsyncSession, *pin_ids: str) -> None:
+    ids = [uuid.UUID(pin_id) for pin_id in pin_ids]
+    result = await db_session.execute(select(PinModel).where(PinModel.id.in_(ids)))
+    for pin in result.scalars().all():
+        pin.processing_state = PinProcessingState.INDEXED
+        pin.moderation_status = PinModerationStatus.APPROVED
+        pin.is_duplicate = False
+        pin.duplicate_of_pin_id = None
+    await db_session.flush()
+
+
 @pytest.mark.asyncio
 async def test_search_all_returns_users_boards_and_pins(
-    client: AsyncClient, fake_image: bytes
+    client: AsyncClient, db_session: AsyncSession, fake_image: bytes
 ):
     headers = await _register_and_login(client, "anna_search", "anna@example.com")
 
@@ -34,12 +50,13 @@ async def test_search_all_returns_users_boards_and_pins(
         json={"title": "Anna Travel Board"},
         headers=headers,
     )
-    await client.post(
+    pin_response = await client.post(
         "/api/v2/pins/",
         data={"title": "Anna Sunset Pin"},
         files={"image": ("test.jpg", io.BytesIO(fake_image), "image/jpeg")},
         headers=headers,
     )
+    await _trust_pin_ids(db_session, pin_response.json()["id"])
 
     response = await client.get("/api/v2/search/?q=Anna&target=all")
     assert response.status_code == 200

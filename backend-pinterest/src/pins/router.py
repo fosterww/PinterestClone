@@ -111,7 +111,7 @@ async def read_pin(
     discovery_service: DiscoveryService = Depends(get_discovery_service),
 ) -> PinResponse:
     """Get pin detail by id, including comments and recommendation tracking."""
-    pin = await pin_service.get_pin_by_id_and_increment_views(pin_id)
+    pin = await pin_service.get_pin_by_id_and_increment_views(pin_id, current_user.id)
     if pin.tags:
         tag_ids = [tag.id for tag in pin.tags]
         await discovery_service.record_tag_visit(current_user.id, tag_ids)
@@ -167,6 +167,19 @@ async def patch_pin(
     """Update a pin."""
     pin = await service.get_pin_by_id(pin_id)
     return await service.update_pin(pin, data, current_user)
+
+
+@router.post("/{pin_id}/retry-processing")
+@limiter.limit("5/minute")
+async def retry_pin_processing(
+    request: Request,
+    pin_id: uuid.UUID,
+    current_user: UserModel = Depends(get_current_user),
+    service: PinService = Depends(get_pin_service),
+) -> PinListResponse:
+    """Retry failed pin image processing."""
+    pin = await service.get_pin_by_id(pin_id)
+    return await service.retry_pin_processing(pin, current_user)
 
 
 @router.delete("/{pin_id}", status_code=status.HTTP_204_NO_CONTENT)
