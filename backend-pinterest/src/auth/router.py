@@ -1,9 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.security.auth import oauth2_scheme
-from database import get_db
 from auth.service import AuthService
 from users.schemas import UserCreate, UserResponse, GoogleLogin, TokenRefresh
 from auth.google_auth import verify_google_token
@@ -18,12 +16,10 @@ router = APIRouter()
 async def register(
     request: Request,
     data: UserCreate,
-    db: AsyncSession = Depends(get_db),
     auth_service: AuthService = Depends(get_auth_service),
 ) -> UserResponse:
     """Register a new user."""
     user = await auth_service.register_user(data)
-    await db.commit()
     return user
 
 
@@ -32,7 +28,6 @@ async def register(
 async def login(
     request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
-    db: AsyncSession = Depends(get_db),
     auth_service: AuthService = Depends(get_auth_service),
 ):
     """Login with username and password."""
@@ -45,7 +40,6 @@ async def login(
         )
 
     tokens = await auth_service.create_user_session_and_tokens(user)
-    await db.commit()
     return tokens
 
 
@@ -54,7 +48,6 @@ async def login(
 async def login_google(
     request: Request,
     data: GoogleLogin,
-    db: AsyncSession = Depends(get_db),
     auth_service: AuthService = Depends(get_auth_service),
 ):
     """Login with Google token."""
@@ -68,7 +61,6 @@ async def login_google(
 
     user = await auth_service.get_or_create_google_user(google_info)
     tokens = await auth_service.create_user_session_and_tokens(user)
-    await db.commit()
     return tokens
 
 
@@ -77,12 +69,10 @@ async def login_google(
 async def refresh_token(
     request: Request,
     data: TokenRefresh,
-    db: AsyncSession = Depends(get_db),
     auth_service: AuthService = Depends(get_auth_service),
 ):
     """Refresh access token."""
     tokens = await auth_service.refresh_user_token(data.refresh_token)
-    await db.commit()
     return tokens
 
 

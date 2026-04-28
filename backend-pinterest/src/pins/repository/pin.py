@@ -59,7 +59,7 @@ class PinRepository:
         offset: int = 0,
         limit: int = 20,
         search: str | None = None,
-        tags: list[str] = [],
+        tags: list[str] | None = None,
         created_at: CreatedAt | None = None,
         popularity: Popularity | None = None,
     ) -> List[PinModel]:

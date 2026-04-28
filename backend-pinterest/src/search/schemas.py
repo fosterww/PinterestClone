@@ -18,8 +18,8 @@ class SearchTarget(str, Enum):
 
 class BoardSearchResponse(BaseModel):
     id: uuid.UUID
-    title: str
-    description: str | None = None
+    title: str = Field(..., max_length=50)
+    description: str | None = Field(None, max_length=200)
     visibility: BoardVisibility
     created_at: datetime
     owner_username: str

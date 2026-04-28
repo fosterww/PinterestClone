@@ -181,7 +181,9 @@ class BoardRepository:
                 board_pin_association.c.board_id == board.id,
                 board_pin_association.c.pin_id == pin.id,
             )
-            await self.db.execute(stmt)
+            result = await self.db.execute(stmt)
+            if result.rowcount:
+                pin.saves_count = max(pin.saves_count - 1, 0)
             await self.db.flush()
             self.db.expire(board, ["pins"])
         except SQLAlchemyError:

@@ -78,6 +78,21 @@ async def test_pin_crud_flow(client: AsyncClient, fake_image: bytes, mock_celery
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "query",
+    [
+        "offset=-1",
+        "limit=0",
+        "limit=51",
+    ],
+)
+async def test_list_pins_rejects_invalid_pagination(client: AsyncClient, query: str):
+    response = await client.get(f"/api/v2/pins/?{query}")
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_pin_create_with_tags(client: AsyncClient, fake_image: bytes):
     await client.post(
         "/api/v2/auth/register",

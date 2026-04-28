@@ -121,6 +121,8 @@ async def test_board_pin_associations(
     board = await board_svc.create_board(sample_user, BoardCreate(title="Pin Board"))
 
     await board_svc.add_pin_to_board(board.id, sample_pin.id, sample_user)
+    await db_session.refresh(sample_pin)
+    assert sample_pin.saves_count == 1
 
     board_id = board.id
 
@@ -134,6 +136,12 @@ async def test_board_pin_associations(
     assert fetched_board.pins[0].id == sample_pin.id
 
     await board_svc.remove_pin_from_board(board.id, sample_pin.id, sample_user)
+    await db_session.refresh(sample_pin)
+    assert sample_pin.saves_count == 0
+
+    await board_svc.remove_pin_from_board(board.id, sample_pin.id, sample_user)
+    await db_session.refresh(sample_pin)
+    assert sample_pin.saves_count == 0
 
     db_session.expire_all()
     result = await db_session.execute(

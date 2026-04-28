@@ -1,5 +1,5 @@
 import uuid
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from boards.models import BoardVisibility
 from users.schemas import UserResponse
@@ -7,8 +7,8 @@ from pins.schemas import PinResponse
 
 
 class BoardBase(BaseModel):
-    title: str
-    description: str | None = None
+    title: str = Field(..., min_length=1, max_length=50)
+    description: str | None = Field(None, max_length=200)
     visibility: BoardVisibility = BoardVisibility.PUBLIC
 
 
@@ -17,9 +17,9 @@ class BoardCreate(BoardBase):
 
 
 class BoardUpdate(BaseModel):
-    title: str | None = None
-    description: str | None = None
-    visibility: BoardVisibility | None = None
+    title: str | None = Field(None, min_length=1, max_length=50)
+    description: str | None = Field(None, max_length=200)
+    visibility: BoardVisibility | None = Field(None)
 
 
 class BoardResponse(BoardBase):

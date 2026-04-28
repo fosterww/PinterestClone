@@ -1,5 +1,5 @@
 import uuid
-from typing import Annotated, Optional, List
+from typing import Optional, List
 
 from fastapi import (
     APIRouter,
@@ -53,7 +53,7 @@ async def create_new_pin(
     link_url: Optional[str] = Form(None),
     generate_ai_description: bool = Form(False),
     generated_pin_id: uuid.UUID | None = Form(None),
-    tags: Annotated[list[str], Form()] = [],
+    tags: list[str] = Form(default_factory=list),
     current_user: UserModel = Depends(get_current_user),
     service: PinService = Depends(get_pin_service),
 ) -> PinListResponse:
@@ -73,7 +73,7 @@ async def create_new_pin(
 @limiter.limit("10/minute")
 async def list_pins(
     request: Request,
-    tags: Annotated[list[str], Query()] = [],
+    tags: list[str] = Query(default_factory=list),
     pagination: Pagination = Depends(),
     filter_pins: FilterPins = Depends(),
     service: PinService = Depends(get_pin_service),

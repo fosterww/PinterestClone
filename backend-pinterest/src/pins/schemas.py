@@ -2,21 +2,21 @@ import uuid
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from tags.schemas import TagResponse
 from users.schemas import UserSearchResponse
 
 
 class PinBase(BaseModel):
-    title: str
-    description: str | None = None
-    link_url: str | None = None
+    title: str = Field(..., min_length=1, max_length=50)
+    description: str | None = Field(None, max_length=200)
+    link_url: str | None = Field(None, max_length=200)
     likes_count: int = 0
 
 
 class PinCommentCreate(BaseModel):
-    comment: str
+    comment: str = Field(..., min_length=1, max_length=255)
     parent_id: uuid.UUID | None = None
 
     @field_validator("parent_id", mode="before")
@@ -32,7 +32,7 @@ class PinCommentResponse(PinCommentCreate):
     likes_count: int = 0
     created_at: datetime
     user: UserSearchResponse
-    replies: list["PinCommentResponse"] = []
+    replies: list["PinCommentResponse"] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -44,11 +44,11 @@ class PinCreate(PinBase):
 
 
 class PinUpdate(BaseModel):
-    title: str | None = None
-    description: str | None = None
-    link_url: str | None = None
-    image_url: str | None = None
-    tags: list[str] = []
+    title: str | None = Field(None, min_length=1, max_length=50)
+    description: str | None = Field(None, max_length=200)
+    link_url: str | None = Field(None, max_length=200)
+    image_url: str | None = Field(None, max_length=200)
+    tags: list[str] = Field(default_factory=list)
 
 
 class PinListResponse(PinBase):
@@ -69,7 +69,7 @@ class PinResponse(PinBase):
     image_url: str
     tags: list[TagResponse]
     created_at: datetime
-    comments: list[PinCommentResponse] = []
+    comments: list[PinCommentResponse] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -100,8 +100,8 @@ class FilterPins(BaseModel):
 
 
 class Pagination(BaseModel):
-    offset: int = 0
-    limit: int = 20
-    search: str | None = None
+    offset: int = Field(default=0, ge=0)
+    limit: int = Field(default=20, ge=1, le=50)
+    search: str | None = Field(None, max_length=100)
 
     model_config = ConfigDict(from_attributes=True)

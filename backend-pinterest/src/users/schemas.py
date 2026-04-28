@@ -1,14 +1,14 @@
 import uuid
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class UserBase(BaseModel):
-    username: str
+    username: str = Field(..., min_length=3, max_length=50)
     email: EmailStr
-    full_name: str | None = None
-    bio: str | None = None
-    avatar_url: str | None = None
+    full_name: str | None = Field(None, max_length=100)
+    bio: str | None = Field(None, max_length=200)
+    avatar_url: str | None = Field(None, max_length=200)
 
 
 class UserCreate(UserBase):
@@ -16,17 +16,17 @@ class UserCreate(UserBase):
 
 
 class UserUpdate(BaseModel):
-    full_name: str | None = None
-    bio: str | None = None
-    avatar_url: str | None = None
-    email_notifications_enabled: bool | None = None
+    full_name: str | None = Field(None, max_length=100)
+    bio: str | None = Field(None, max_length=200)
+    avatar_url: str | None = Field(None, max_length=200)
+    email_notifications_enabled: bool | None = Field(None)
 
 
 class UserSearchResponse(BaseModel):
     id: uuid.UUID
     username: str
-    full_name: str | None = None
-    avatar_url: str | None = None
+    full_name: str | None = Field(None, max_length=100)
+    avatar_url: str | None = Field(None, max_length=200)
 
     model_config = ConfigDict(from_attributes=True)
 
