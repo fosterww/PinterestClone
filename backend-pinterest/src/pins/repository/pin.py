@@ -105,7 +105,9 @@ class PinRepository:
                 {"file_hash_sha256": file_hash_sha256},
             )
         except SQLAlchemyError:
-            logger.exception(f"Database error while locking pin hash: {file_hash_sha256}")
+            logger.exception(
+                f"Database error while locking pin hash: {file_hash_sha256}"
+            )
             raise AppError()
 
     async def add_pin_edit_history(

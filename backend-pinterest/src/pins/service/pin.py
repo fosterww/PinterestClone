@@ -275,7 +275,9 @@ class PinService:
         after = {}
         if "tags" in update_data:
             before["tags"] = [tag.name for tag in pin.tags]
-            update_data["tags"] = [tag.strip() for tag in update_data["tags"] if tag.strip()]
+            update_data["tags"] = [
+                tag.strip() for tag in update_data["tags"] if tag.strip()
+            ]
             pin.tags = await self.tag_service.get_or_create_tag(update_data["tags"])
             after["tags"] = [tag.name for tag in pin.tags]
             changed_fields.append("tags")
@@ -286,11 +288,7 @@ class PinService:
         ):
             update_data["description"] = None
         before.update(
-            {
-                field: getattr(pin, field)
-                for field in update_data
-                if hasattr(pin, field)
-            }
+            {field: getattr(pin, field) for field in update_data if hasattr(pin, field)}
         )
         try:
             updated_pin = await self.repo.update_pin(pin, update_data)

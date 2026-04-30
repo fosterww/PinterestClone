@@ -121,9 +121,7 @@ async def test_create_pin_stores_metadata_and_history(
     assert created_pin.moderation_status == PinModerationStatus.PENDING
 
     result = await db_session.execute(
-        select(PinEditHistoryModel).where(
-            PinEditHistoryModel.pin_id == created_pin.id
-        )
+        select(PinEditHistoryModel).where(PinEditHistoryModel.pin_id == created_pin.id)
     )
     history = result.scalars().all()
     assert len(history) == 1

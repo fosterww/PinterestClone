@@ -87,9 +87,7 @@ def upgrade() -> None:
     )
     op.add_column(
         "pins",
-        sa.Column(
-            "tagging_attempts", sa.Integer(), nullable=False, server_default="0"
-        ),
+        sa.Column("tagging_attempts", sa.Integer(), nullable=False, server_default="0"),
     )
     op.add_column(
         "pins",
@@ -97,9 +95,7 @@ def upgrade() -> None:
             "indexing_attempts", sa.Integer(), nullable=False, server_default="0"
         ),
     )
-    op.add_column(
-        "pins", sa.Column("last_processing_error", sa.String(length=1000))
-    )
+    op.add_column("pins", sa.Column("last_processing_error", sa.String(length=1000)))
     op.add_column(
         "pins", sa.Column("tagged_at", sa.DateTime(timezone=True), nullable=True)
     )
@@ -114,11 +110,11 @@ def upgrade() -> None:
     )
     op.add_column(
         "pins",
-        sa.Column("is_duplicate", sa.Boolean(), nullable=False, server_default=sa.false()),
+        sa.Column(
+            "is_duplicate", sa.Boolean(), nullable=False, server_default=sa.false()
+        ),
     )
-    op.add_column(
-        "pins", sa.Column("duplicate_of_pin_id", sa.Uuid(), nullable=True)
-    )
+    op.add_column("pins", sa.Column("duplicate_of_pin_id", sa.Uuid(), nullable=True))
     op.create_foreign_key(
         op.f("fk_pins_duplicate_of_pin_id_pins"),
         "pins",
