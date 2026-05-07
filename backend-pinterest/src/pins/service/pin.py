@@ -1,31 +1,19 @@
-import uuid
+import asyncio
 import base64
 import hashlib
 import io
-import asyncio
+import uuid
 from datetime import datetime, timezone
 from time import perf_counter
 from typing import List
 
-from PIL import Image, UnidentifiedImageError
-
 from fastapi import UploadFile
+from PIL import Image, UnidentifiedImageError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai.models import AIOperationType, AIProvider, AIStatus
 from ai.prompts import build_description_generation_prompt
 from ai.tracking import record_ai_operation
-from core.infra.s3 import S3Service
-from core.infra.gemini import GeminiService
-from core.exception import (
-    AppError,
-    ConflictError,
-    NotFoundError,
-    ForbiddenError,
-    BadRequestError,
-    ProviderError,
-)
-
 from boards.models import (
     GeneratedPinModel,
     PinEditSource,
@@ -33,16 +21,21 @@ from boards.models import (
     PinModerationStatus,
     PinProcessingState,
 )
-from users.models import UserModel
-from pins.schemas import (
-    PinCreate,
-    PinUpdate,
-    CreatedAt,
-    Popularity,
+from core.exception import (
+    AppError,
+    BadRequestError,
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    ProviderError,
 )
-from tags.service import TagService
+from core.infra.gemini import GeminiService
+from core.infra.s3 import S3Service
 from pins.repository.pin import PinRepository
+from pins.schemas import CreatedAt, PinCreate, PinUpdate, Popularity
 from pins.task import index_image_task, tag_pin_image_task
+from tags.service import TagService
+from users.models import UserModel
 
 
 class PinService:

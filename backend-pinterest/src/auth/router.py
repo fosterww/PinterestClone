@@ -1,12 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 
-from core.security.auth import oauth2_scheme
-from auth.service import AuthService
-from users.schemas import UserCreate, UserResponse, GoogleLogin, TokenRefresh
 from auth.google_auth import verify_google_token
+from auth.service import AuthService
 from core.dependencies import get_auth_service
+from core.security.auth import oauth2_scheme
 from core.security.limiter import limiter
+from users.schemas import GoogleLogin, TokenRefresh, UserCreate, UserResponse
 
 router = APIRouter()
 

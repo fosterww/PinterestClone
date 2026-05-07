@@ -1,17 +1,16 @@
 import uuid
-from typing import List
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List
 
 from anyio import to_thread
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from users.models import UserModel
-from pins.repository.pin import PinRepository
-from pins.repository.comment import CommentRepository
-from pins.schemas import PinCommentResponse
 from boards.models import PinCommentModel
-from core.exception import AppError, NotFoundError, ForbiddenError, BadRequestError
+from core.exception import AppError, BadRequestError, ForbiddenError, NotFoundError
 from core.infra.comment_filter import CommentFilter
+from pins.repository.comment import CommentRepository
+from pins.repository.pin import PinRepository
+from pins.schemas import PinCommentResponse
+from users.models import UserModel
 
 if TYPE_CHECKING:
     from notification.service import NotificationService

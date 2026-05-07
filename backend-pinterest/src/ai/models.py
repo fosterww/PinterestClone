@@ -2,8 +2,9 @@ import uuid
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import DateTime, ForeignKey, JSON, String, func
+from sqlalchemy import JSON, DateTime
 from sqlalchemy import Enum as SAEnum
+from sqlalchemy import ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from boards.models import GeneratedPinModel, PinModel

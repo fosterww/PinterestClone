@@ -1,49 +1,38 @@
 import uuid
 from time import perf_counter
-from typing import Optional, List
+from typing import List, Optional
 
-from fastapi import (
-    APIRouter,
-    Depends,
-    Query,
-    status,
-    UploadFile,
-    File,
-    Form,
-    Request,
-)
+from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai.models import AIOperationType, AIProvider, AIStatus
 from ai.tracking import record_ai_operation
-from core.security.limiter import limiter
-from core.infra.clarifai import ClarifaiService, get_clarifai_service
 from core.dependencies import (
-    get_pin_repository,
-    get_pin_service,
     get_comment_service,
     get_discovery_service,
+    get_pin_repository,
+    get_pin_service,
 )
-from database import get_db
+from core.infra.clarifai import ClarifaiService, get_clarifai_service
 from core.security.auth import get_current_user
-from users.models import UserModel
+from core.security.limiter import limiter
+from database import get_db
+from pins.repository.pin import PinRepository
 from pins.schemas import (
-    PinCreate,
-    PinUpdate,
-    PinResponse,
-    PinListResponse,
-    Pagination,
     FilterPins,
+    Pagination,
     PinCommentCreate,
     PinCommentResponse,
+    PinCreate,
+    PinListResponse,
+    PinResponse,
+    PinUpdate,
 )
-
-from pins.repository.pin import PinRepository
-from pins.service.pin import PinService
 from pins.service.comment import CommentService
 from pins.service.discovery import DiscoveryService
+from pins.service.pin import PinService
 from pins.task import delete_image_task
-
+from users.models import UserModel
 
 router = APIRouter()
 

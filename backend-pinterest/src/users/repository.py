@@ -1,14 +1,14 @@
 import uuid
 
-from sqlalchemy import select, or_, func, insert, delete
+from sqlalchemy import delete, func, insert, or_, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from users.models import UserModel, user_follow_association
-from users.schemas import UserUpdate
+from boards.models import BoardModel, BoardVisibility, PinModel
 from core.exception import AppError, ConflictError, NotFoundError
 from core.logger import logger
-from boards.models import BoardModel, BoardVisibility, PinModel
+from users.models import UserModel, user_follow_association
+from users.schemas import UserUpdate
 
 
 class UserRepository:

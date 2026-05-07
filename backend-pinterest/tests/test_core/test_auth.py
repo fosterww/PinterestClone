@@ -1,15 +1,15 @@
-import pytest
 import jwt
-from sqlalchemy.ext.asyncio import AsyncSession
+import pytest
 from fastapi import HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from auth.repository import AuthRepository
+from auth.service import AuthService
+from core.config import settings
 from core.security.auth import get_current_user
 from core.security.security import create_access_token
-from core.config import settings
-from auth.service import AuthService
-from users.schemas import UserCreate
 from users.repository import UserRepository
-from auth.repository import AuthRepository
+from users.schemas import UserCreate
 
 
 @pytest.mark.asyncio

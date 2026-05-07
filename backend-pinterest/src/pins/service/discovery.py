@@ -1,11 +1,12 @@
 import json
 import uuid
 from typing import List
-from core.logger import logger
-from core.infra.cache import CacheService
+
 from boards.models import PinModel
-from pins.repository.pin import PinRepository
+from core.infra.cache import CacheService
+from core.logger import logger
 from pins.repository.discover import DiscoverRepository
+from pins.repository.pin import PinRepository
 from pins.schemas import PinListResponse
 from users.repository import UserRepository
 

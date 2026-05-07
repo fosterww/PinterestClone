@@ -1,35 +1,33 @@
 from functools import lru_cache
+
 from fastapi import Depends, Request
-from sqlalchemy.ext.asyncio import AsyncSession
 from redis.asyncio import Redis
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai.service import OpenAIService
-from database import get_db
-from core.security.session import SessionService
-from core.infra.cache import CacheService
+from auth.repository import AuthRepository
+from auth.service import AuthService
+from boards.repository import BoardRepository
+from boards.service import BoardService
 from core.config import settings
+from core.infra.cache import CacheService
+from core.infra.comment_filter import CommentFilter
+from core.infra.gemini import GeminiService
 from core.infra.openai import OpenAIClient
 from core.infra.s3 import S3Service
-from core.infra.comment_filter import CommentFilter
+from core.security.session import SessionService
+from database import get_db
 from notification.service import NotificationService
-
-from users.repository import UserRepository
-from users.service import UserService
-from auth.repository import AuthRepository
-from boards.repository import BoardRepository
-
-from pins.repository.pin import PinRepository
 from pins.repository.comment import CommentRepository
 from pins.repository.discover import DiscoverRepository
-
-from core.infra.gemini import GeminiService
-from auth.service import AuthService
-from pins.service.pin import PinService
+from pins.repository.pin import PinRepository
 from pins.service.comment import CommentService
 from pins.service.discovery import DiscoveryService
-from boards.service import BoardService
+from pins.service.pin import PinService
 from search.service import SearchService
 from tags.service import TagService
+from users.repository import UserRepository
+from users.service import UserService
 
 
 def get_board_repository(db: AsyncSession = Depends(get_db)) -> BoardRepository:

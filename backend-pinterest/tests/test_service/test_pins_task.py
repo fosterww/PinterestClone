@@ -64,16 +64,22 @@ async def test_tag_pin_image_records_gemini_operations(db_session, monkeypatch):
         def generate_description(self, image_bytes, title):
             return "A bright kitchen with sunlight."
 
-    monkeypatch.setattr(pins_task, "AsyncSessionLocal", lambda: SessionContext(db_session))
+    monkeypatch.setattr(
+        pins_task, "AsyncSessionLocal", lambda: SessionContext(db_session)
+    )
     monkeypatch.setattr(pins_task, "GeminiService", FakeGeminiService)
 
     tagged = await pins_task._tag_pin_image(str(pin.id), b"image-bytes", True)
 
     operations = (
-        await db_session.execute(
-            select(AIOperationModel).order_by(AIOperationModel.operation_type)
+        (
+            await db_session.execute(
+                select(AIOperationModel).order_by(AIOperationModel.operation_type)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     operation_types = {operation.operation_type for operation in operations}
 
     assert tagged is True
@@ -109,7 +115,9 @@ async def test_record_indexing_success_records_clarifai_operation(
     db_session.add(pin)
     await db_session.commit()
 
-    monkeypatch.setattr(pins_task, "AsyncSessionLocal", lambda: SessionContext(db_session))
+    monkeypatch.setattr(
+        pins_task, "AsyncSessionLocal", lambda: SessionContext(db_session)
+    )
 
     await pins_task._record_indexing_success(str(pin.id), latency_ms=321)
 

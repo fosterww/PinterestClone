@@ -9,16 +9,14 @@ from boards.schemas import BoardCreate
 from boards.service import BoardService
 from notification.schemas import NotificationType
 from notification.service import NotificationService
-from pins.schemas import PinCreate
-from pins.service.comment import CommentService
 from pins.repository.comment import CommentRepository
 from pins.repository.pin import PinRepository
+from pins.schemas import PinCreate
+from pins.service.comment import CommentService
+from tests.test_service.test_pins_service import mock_image_file
 from users.repository import UserRepository
 from users.schemas import UserCreate, UserUpdate
 from users.service import UserService
-
-
-from tests.test_service.test_pins_service import mock_image_file
 
 
 @pytest.fixture

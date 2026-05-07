@@ -1,18 +1,20 @@
 import uuid
 from typing import List
 
-from sqlalchemy import select, delete, insert as sa_insert, or_
-from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy import delete
+from sqlalchemy import insert as sa_insert
+from sqlalchemy import or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload, selectinload
+
+from boards.models import BoardModel, PinCommentModel, PinModel, board_pin_association
+from boards.schemas import BoardCreate, BoardUpdate, BoardVisibility
 from core.exception import AppError, ConflictError
 from core.logger import logger
-
-from boards.models import BoardModel, PinModel, PinCommentModel, board_pin_association
 from users.models import UserModel
-from boards.schemas import BoardCreate, BoardUpdate, BoardVisibility
 
 
 class BoardRepository:

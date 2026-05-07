@@ -37,6 +37,7 @@ dependencies = [
     "google-genai>=1.71.0",
     "prometheus-client>=0.25.0",
     "openai>=2.32.0",
+    "isort>=8.0.1",
 ]
 
 [[tool.uv.index]]

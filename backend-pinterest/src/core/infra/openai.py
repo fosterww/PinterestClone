@@ -1,6 +1,7 @@
 from typing import Literal
 
-from openai import APITimeoutError, OpenAI, RateLimitError as OpenAIRateLimitError
+from openai import APITimeoutError, OpenAI
+from openai import RateLimitError as OpenAIRateLimitError
 
 from core.exception import AITimeoutError, ProviderError, RateLimitError
 from core.logger import logger

@@ -1,13 +1,14 @@
+import uuid
+
 import pytest
 import pytest_asyncio
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-import uuid
 
+from auth.repository import AuthRepository
 from auth.service import AuthService
 from users.repository import UserRepository
 from users.schemas import UserCreate, UserUpdate
-from auth.repository import AuthRepository
 
 
 @pytest.fixture

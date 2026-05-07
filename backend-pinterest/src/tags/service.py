@@ -3,9 +3,9 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.logger import logger
 from boards.models import TagModel
 from core.exception import AppError
+from core.logger import logger
 
 
 class TagService:

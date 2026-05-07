@@ -1,21 +1,21 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from redis.asyncio import Redis
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from fastapi.middleware.cors import CORSMiddleware
-from redis.asyncio import Redis
 
-from auth.router import router as auth_router
 from ai.router import router as ai_router
+from auth.router import router as auth_router
 from boards.router import router as board_router
-from pins.router import router as pin_router
-from search.router import router as search_router
-from users.router import router as user_router
 from core.config import settings
 from core.infra.metrics import metrics_response, setup_metrics
 from core.security.limiter import limiter
+from pins.router import router as pin_router
+from search.router import router as search_router
+from users.router import router as user_router
 
 
 @asynccontextmanager

@@ -3,14 +3,14 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from auth.repository import AuthRepository
 from auth.service import AuthService
-from users.schemas import UserCreate
 from core.security.security import verify_password
 from users.repository import UserRepository
-from auth.repository import AuthRepository
+from users.schemas import UserCreate
 
 
 @pytest.fixture

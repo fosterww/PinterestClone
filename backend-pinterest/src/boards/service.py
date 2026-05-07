@@ -4,13 +4,13 @@ from typing import TYPE_CHECKING
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import set_committed_value
 
-from core.exception import AppError, NotFoundError, ForbiddenError
-from core.security.session import SessionService
 from boards.models import BoardModel, BoardVisibility
-from users.models import UserModel
-from boards.schemas import BoardCreate, BoardUpdate, BoardResponse
 from boards.repository import BoardRepository
+from boards.schemas import BoardCreate, BoardResponse, BoardUpdate
+from core.exception import AppError, ForbiddenError, NotFoundError
+from core.security.session import SessionService
 from pins.service.pin import PinService
+from users.models import UserModel
 from users.repository import UserRepository
 
 if TYPE_CHECKING:

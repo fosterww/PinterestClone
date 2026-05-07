@@ -8,16 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from ai.models import AIOperationType, AIProvider, AIStatus
-from ai.prompts import (
-    build_description_generation_prompt,
-    build_tag_generation_prompt,
-)
+from ai.prompts import build_description_generation_prompt, build_tag_generation_prompt
 from ai.tracking import record_ai_operation
-from core.exception import ProviderError
-from core.infra.celery import celery_app
-from core.infra.clarifai import get_clarifai_service
-from core.infra.gemini import GeminiService
-from database import AsyncSessionLocal
 from boards.models import (
     PinEditHistoryModel,
     PinEditSource,
@@ -25,8 +17,12 @@ from boards.models import (
     PinModerationStatus,
     PinProcessingState,
 )
+from core.exception import ProviderError
+from core.infra.celery import celery_app
+from core.infra.clarifai import get_clarifai_service
+from core.infra.gemini import GeminiService
+from database import AsyncSessionLocal
 from tags.service import TagService
-
 
 MAX_TAG_RETRIES = 3
 MAX_INDEX_RETRIES = 3

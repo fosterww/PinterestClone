@@ -1,30 +1,26 @@
 import uuid
-from typing import List
 from datetime import datetime, timezone
+from typing import List
 
 from sqlalchemy import select, text, update
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from core.exception import AppError, BadRequestError, ConflictError, NotFoundError
-from core.logger import logger
 from boards.models import (
     GeneratedPinModel,
-    PinModel,
-    PinLikeModel,
     PinEditHistoryModel,
     PinEditSource,
+    PinLikeModel,
+    PinModel,
     PinModerationStatus,
     PinProcessingState,
     TagModel,
 )
+from core.exception import AppError, BadRequestError, ConflictError, NotFoundError
+from core.logger import logger
+from pins.schemas import CreatedAt, PinCreate, Popularity
 from users.models import UserModel
-from pins.schemas import (
-    CreatedAt,
-    Popularity,
-    PinCreate,
-)
 
 
 class PinRepository:

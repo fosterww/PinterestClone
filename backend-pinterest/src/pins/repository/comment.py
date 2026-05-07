@@ -1,14 +1,14 @@
-from typing import List
 import uuid
+from typing import List
 
 from sqlalchemy import select, update
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
-from sqlalchemy.orm import selectinload
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
+from boards.models import PinCommentLikeModel, PinCommentModel
 from core.exception import AppError, ConflictError
 from core.logger import logger
-from boards.models import PinCommentModel, PinCommentLikeModel
 
 
 class CommentRepository:

@@ -1,19 +1,14 @@
 import uuid
 from typing import List
 
-from fastapi import APIRouter, Depends, status, Request
+from fastapi import APIRouter, Depends, Request, status
 
-from core.security.limiter import limiter
-from core.security.auth import get_current_user, get_optional_current_user
-from users.models import UserModel
-from boards.schemas import (
-    BoardCreate,
-    BoardUpdate,
-    BoardResponse,
-    BoardPinsResponse,
-)
+from boards.schemas import BoardCreate, BoardPinsResponse, BoardResponse, BoardUpdate
 from boards.service import BoardService
 from core.dependencies import get_board_service
+from core.security.auth import get_current_user, get_optional_current_user
+from core.security.limiter import limiter
+from users.models import UserModel
 
 router = APIRouter()
 

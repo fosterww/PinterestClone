@@ -5,7 +5,6 @@ from google.genai import types
 
 from ai.schemas import GenerateImageRequest
 
-
 IMAGE_GENERATION_PROMPT_NAME = "image_generation"
 IMAGE_GENERATION_PROMPT_VERSION = "image_generation_v1"
 TAG_GENERATION_PROMPT_NAME = "tag_generation"

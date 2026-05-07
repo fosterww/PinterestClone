@@ -1,14 +1,13 @@
 from fastapi import APIRouter, Depends, Request
 
-from core.security.limiter import limiter
-from core.security.auth import get_current_user, get_optional_current_user
-from users.models import UserModel
-from users.schemas import UserUpdate, UserResponse, PublicUserResponse
-from core.dependencies import get_user_service
-from users.service import UserService
 from boards.schemas import BoardResponse
 from boards.service import BoardService
-from core.dependencies import get_board_service
+from core.dependencies import get_board_service, get_user_service
+from core.security.auth import get_current_user, get_optional_current_user
+from core.security.limiter import limiter
+from users.models import UserModel
+from users.schemas import PublicUserResponse, UserResponse, UserUpdate
+from users.service import UserService
 
 router = APIRouter()
 

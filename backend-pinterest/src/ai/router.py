@@ -7,7 +7,6 @@ from core.security.auth import get_current_user
 from core.security.limiter import limiter
 from users.models import UserModel
 
-
 router = APIRouter()
 
 

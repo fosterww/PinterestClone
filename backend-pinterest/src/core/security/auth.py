@@ -1,15 +1,15 @@
+import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-import jwt
 from jwt.exceptions import InvalidTokenError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
+from core.dependencies import get_session_service
+from core.security.session import SessionService
 from database import get_db
 from users.models import UserModel
-from core.security.session import SessionService
-from core.dependencies import get_session_service
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v2/auth/login")
 optional_oauth2_scheme = OAuth2PasswordBearer(

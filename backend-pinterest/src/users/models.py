@@ -2,8 +2,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from sqlalchemy import String, func, DateTime, ForeignKey, Table, Column
 from sqlalchemy import UUID as SAUUID
+from sqlalchemy import Column, DateTime, ForeignKey, String, Table, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -11,10 +11,10 @@ from database import Base
 if TYPE_CHECKING:
     from boards.models import (
         BoardModel,
-        PinModel,
-        PinLikeModel,
-        PinCommentModel,
         GeneratedPinModel,
+        PinCommentModel,
+        PinLikeModel,
+        PinModel,
     )
 
 

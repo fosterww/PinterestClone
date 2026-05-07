@@ -1,18 +1,18 @@
 import uuid
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from core.exception import AppError
-from core.logger import logger
 from boards.models import (
     PinModel,
     PinModerationStatus,
     PinProcessingState,
     pin_tag_association,
 )
+from core.exception import AppError
+from core.logger import logger
 
 
 def trusted_pin_filters():

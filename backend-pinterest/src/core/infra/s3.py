@@ -2,8 +2,8 @@ import uuid
 
 import aioboto3
 import httpx
+from fastapi import HTTPException, UploadFile, status
 from tenacity import retry, stop_after_attempt, wait_exponential
-from fastapi import UploadFile, HTTPException, status
 
 from core.config import settings
 

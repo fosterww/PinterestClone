@@ -3,20 +3,11 @@ from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import (
-    Boolean,
-    DateTime,
-    ForeignKey,
-    Integer,
-    JSON,
-    String,
-    func,
-    Table,
-    Column,
-    UniqueConstraint,
-)
-from sqlalchemy import Enum as SAEnum
+from sqlalchemy import JSON
 from sqlalchemy import UUID as SAUUID
+from sqlalchemy import Boolean, Column, DateTime
+from sqlalchemy import Enum as SAEnum
+from sqlalchemy import ForeignKey, Integer, String, Table, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base

@@ -1,9 +1,10 @@
 import uuid
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from boards.models import BoardVisibility
-from users.schemas import UserResponse
 from pins.schemas import PinResponse
+from users.schemas import UserResponse
 
 
 class BoardBase(BaseModel):

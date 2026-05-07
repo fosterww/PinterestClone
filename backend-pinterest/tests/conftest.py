@@ -1,40 +1,35 @@
-import pytest
-import pytest_asyncio
 from collections.abc import AsyncGenerator
 from unittest.mock import patch
 
+import pytest
+import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import (
-    AsyncSession,
     AsyncEngine,
+    AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
 
 from auth.repository import AuthRepository
-from boards.repository import BoardRepository
 from auth.service import AuthService
+from boards.repository import BoardRepository
 from boards.service import BoardService
+from core.dependencies import get_comment_filter, get_s3_service, get_session_service
+from core.security.limiter import limiter
 from database import Base, get_db
 from main import app
-from core.security.limiter import limiter
-from core.dependencies import (
-    get_session_service,
-    get_s3_service,
-    get_comment_filter,
-)
 from notification.service import NotificationService
+from pins.repository.comment import CommentRepository
+from pins.repository.discover import DiscoverRepository
 from pins.repository.pin import PinRepository
+from pins.service.comment import CommentService
+from pins.service.discovery import DiscoveryService
 from pins.service.pin import PinService
 from tags.service import TagService
-from pins.service.comment import CommentService
-from pins.repository.comment import CommentRepository
-from pins.service.discovery import DiscoveryService
-from pins.repository.discover import DiscoverRepository
 from users.repository import UserRepository
 from users.service import UserService
-
 
 limiter.enabled = False
 

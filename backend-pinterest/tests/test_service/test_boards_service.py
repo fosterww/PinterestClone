@@ -1,27 +1,22 @@
-import pytest
-
-from fastapi import UploadFile
 import io
 
-
+import pytest
 import pytest_asyncio
-from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import HTTPException
-
-from sqlalchemy.orm import selectinload, joinedload
+from fastapi import HTTPException, UploadFile
 from sqlalchemy import select
-from boards.models import BoardModel
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload, selectinload
 
-from users.schemas import UserCreate
-from pins.schemas import PinCreate
-from boards.schemas import BoardCreate, BoardUpdate
-
-from auth.service import AuthService
-from pins.service.pin import PinService
-from boards.service import BoardService
-from boards.repository import BoardRepository
-from users.repository import UserRepository
 from auth.repository import AuthRepository
+from auth.service import AuthService
+from boards.models import BoardModel
+from boards.repository import BoardRepository
+from boards.schemas import BoardCreate, BoardUpdate
+from boards.service import BoardService
+from pins.schemas import PinCreate
+from pins.service.pin import PinService
+from users.repository import UserRepository
+from users.schemas import UserCreate
 
 
 def mock_image_file():

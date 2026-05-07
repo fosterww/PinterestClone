@@ -1,12 +1,9 @@
-import jwt
 from datetime import datetime, timezone
 
-from core.security.security import (
-    hash_password,
-    verify_password,
-    create_access_token,
-)
+import jwt
+
 from core.config import settings
+from core.security.security import create_access_token, hash_password, verify_password
 
 
 class TestHashPassword:

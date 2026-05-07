@@ -10,9 +10,13 @@ from ai.prompts import (
 from ai.schemas import GenerateImageRequest
 from ai.service import OpenAIService
 from ai.tracking import record_ai_operation
-from core.exception import AITimeoutError, InvalidAIOutputError, ProviderError, RateLimitError
+from core.exception import (
+    AITimeoutError,
+    InvalidAIOutputError,
+    ProviderError,
+    RateLimitError,
+)
 from users.models import UserModel
-
 
 ONE_PIXEL_PNG = (
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNgAAIAAAUA"

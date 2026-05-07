@@ -3,14 +3,10 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.exception import AppError, NotFoundError
+from notification.service import NotificationService
 from users.models import UserModel
 from users.repository import UserRepository
-from users.schemas import (
-    PublicUserResponse,
-    UserResponse,
-    UserUpdate,
-)
-from notification.service import NotificationService
+from users.schemas import PublicUserResponse, UserResponse, UserUpdate
 
 
 class UserService:

@@ -1,6 +1,7 @@
 import uuid
 
 from redis.asyncio import Redis, RedisError
+
 from core.logger import logger
 
 

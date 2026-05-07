@@ -3,9 +3,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from users.models import RefreshTokenModel
-from core.logger import logger
 from core.exception import AppError
+from core.logger import logger
+from users.models import RefreshTokenModel
 
 
 class AuthRepository:

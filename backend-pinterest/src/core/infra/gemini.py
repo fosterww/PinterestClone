@@ -3,10 +3,7 @@ import json
 from google import genai
 from google.genai import types
 
-from ai.prompts import (
-    build_description_generation_prompt,
-    build_tag_generation_prompt,
-)
+from ai.prompts import build_description_generation_prompt, build_tag_generation_prompt
 from core.config import settings
 from core.logger import logger
 

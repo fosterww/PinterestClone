@@ -1,10 +1,11 @@
 import base64
-import httpx
 from typing import List
 
+import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
-from core.logger import logger
+
 from core.config import settings
+from core.logger import logger
 
 
 class ClarifaiService:
