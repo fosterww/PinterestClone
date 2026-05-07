@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import uuid
 from datetime import datetime
 from enum import Enum
@@ -282,7 +280,7 @@ class PinCommentModel(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
-    parent: Mapped[PinCommentModel | None] = relationship(
+    parent: Mapped["PinCommentModel | None"] = relationship(
         "PinCommentModel",
         back_populates="replies",
         remote_side=[id],

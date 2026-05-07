@@ -4,6 +4,7 @@ import hashlib
 import io
 import asyncio
 from datetime import datetime, timezone
+from time import perf_counter
 from typing import List
 
 from PIL import Image, UnidentifiedImageError
@@ -11,6 +12,9 @@ from PIL import Image, UnidentifiedImageError
 from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ai.models import AIOperationType, AIProvider, AIStatus
+from ai.prompts import build_description_generation_prompt
+from ai.tracking import record_ai_operation
 from core.infra.s3 import S3Service
 from core.infra.gemini import GeminiService
 from core.exception import (
@@ -19,6 +23,7 @@ from core.exception import (
     NotFoundError,
     ForbiddenError,
     BadRequestError,
+    ProviderError,
 )
 
 from boards.models import (
@@ -135,11 +140,33 @@ class PinService:
 
         has_manual_tags = bool(data.tags)
         if has_manual_tags and data.generate_ai_description and not data.description:
+            description_prompt = build_description_generation_prompt(
+                data.title, original_content
+            )
+            started_at = perf_counter()
             data.description = await asyncio.to_thread(
                 self.gemini_service.generate_description,
                 original_content,
                 data.title,
             )
+            if data.description is None:
+                description_error = "Failed to generate description"
+            else:
+                description_error = None
+            await record_ai_operation(
+                self.db,
+                provider=AIProvider.GEMINI,
+                model=self._gemini_model_name(),
+                operation_type=AIOperationType.DESCRIPTION_GENERATION,
+                prompt_version=description_prompt.version,
+                input_parameters=description_prompt.input_parameters,
+                status=AIStatus.COMPLETED if data.description else AIStatus.FAILED,
+                latency_ms=self._elapsed_ms(started_at),
+                error_message=description_error,
+                user_id=owner.id,
+            )
+            if data.description is None:
+                raise ProviderError(description_error)
         try:
             tags = await self.tag_service.get_or_create_tag(data.tags or [])
             pin_metadata = {
@@ -263,6 +290,12 @@ class PinService:
                 "dominant_colors": dominant_colors,
                 "file_hash_sha256": hashlib.sha256(image_bytes).hexdigest(),
             }
+
+    def _elapsed_ms(self, started_at: float) -> int:
+        return int((perf_counter() - started_at) * 1000)
+
+    def _gemini_model_name(self) -> str:
+        return getattr(self.gemini_service, "MODEL", GeminiService.MODEL)
 
     async def update_pin(
         self, pin: PinModel, data: PinUpdate, current_user: UserModel

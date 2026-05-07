@@ -1,4 +1,5 @@
 import uuid
+from time import perf_counter
 from typing import Optional, List
 
 from fastapi import (
@@ -11,7 +12,10 @@ from fastapi import (
     Form,
     Request,
 )
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from ai.models import AIOperationType, AIProvider, AIStatus
+from ai.tracking import record_ai_operation
 from core.security.limiter import limiter
 from core.infra.clarifai import ClarifaiService, get_clarifai_service
 from core.dependencies import (
@@ -20,6 +24,7 @@ from core.dependencies import (
     get_comment_service,
     get_discovery_service,
 )
+from database import get_db
 from core.security.auth import get_current_user
 from users.models import UserModel
 from pins.schemas import (
@@ -286,9 +291,22 @@ async def get_related_pins(
     clarifai_service: ClarifaiService = Depends(get_clarifai_service),
     discovery_service: DiscoveryService = Depends(get_discovery_service),
     pin_repo: PinRepository = Depends(get_pin_repository),
+    db: AsyncSession = Depends(get_db),
 ) -> List[PinListResponse]:
     """Get related pins combining Clarifai visual search and Tag-based discovery."""
+    started_at = perf_counter()
     similar_ids = await clarifai_service.search_similar_images_by_id(str(pin_id))
+    await record_ai_operation(
+        db,
+        provider=AIProvider.CLARIFAI,
+        model="clarifai-visual-search",
+        operation_type=AIOperationType.VISUAL_SEARCH,
+        status=AIStatus.COMPLETED,
+        input_parameters={"pin_id": str(pin_id)},
+        latency_ms=int((perf_counter() - started_at) * 1000),
+        related_pin_id=pin_id,
+    )
+    await db.commit()
     db_related_pins = await discovery_service.get_related_pins(pin_id, limit=20)
     clarifai_pins = await pin_repo.get_pins_by_ids(similar_ids)
 

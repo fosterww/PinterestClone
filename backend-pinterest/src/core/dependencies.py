@@ -3,7 +3,7 @@ from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from redis.asyncio import Redis
 
-from ai.service import AIService
+from ai.service import OpenAIService
 from database import get_db
 from core.security.session import SessionService
 from core.infra.cache import CacheService
@@ -98,8 +98,8 @@ def get_ai_service(
     db: AsyncSession = Depends(get_db),
     s3_service: S3Service = Depends(get_s3_service),
     openai_client: OpenAIClient = Depends(get_openai_client),
-) -> AIService:
-    return AIService(s3_service, openai_client, db)
+) -> OpenAIService:
+    return OpenAIService(s3_service, openai_client, db)
 
 
 def get_notification_service(

@@ -33,3 +33,23 @@ class BadRequestError(AppError):
 class ForbiddenError(AppError):
     def __init__(self, detail: str = "Forbidden"):
         super().__init__(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
+
+
+class ProviderError(AppError):
+    def __init__(self, detail: str = "AI provider failed"):
+        super().__init__(status_code=status.HTTP_502_BAD_GATEWAY, detail=detail)
+
+
+class InvalidAIOutputError(AppError):
+    def __init__(self, detail: str = "Invalid AI output"):
+        super().__init__(status_code=status.HTTP_502_BAD_GATEWAY, detail=detail)
+
+
+class AITimeoutError(AppError):
+    def __init__(self, detail: str = "AI request timeout"):
+        super().__init__(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail=detail)
+
+
+class RateLimitError(AppError):
+    def __init__(self, detail: str = "Rate limit exceeded"):
+        super().__init__(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=detail)

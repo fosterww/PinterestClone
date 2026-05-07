@@ -185,7 +185,12 @@ async def client(
 
     def override_get_openai_client():
         class MockOpenAIClient:
-            def generate_image(self, prompt: str, number_of_images: int = 1):
+            def generate_image(
+                self,
+                prompt: str,
+                number_of_images: int = 1,
+                aspect_ratio: str | None = "1:1",
+            ):
                 one_pixel_png = (
                     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNgAAIAAAUA"
                     "AV7zKjoAAAAASUVORK5CYII="
@@ -264,7 +269,12 @@ def mock_gemini_service():
 @pytest.fixture
 def mock_openai_service():
     class MockOpenAIService:
-        def generate_image(self, prompt: str, number_of_images: int = 1):
+        def generate_image(
+            self,
+            prompt: str,
+            number_of_images: int = 1,
+            aspect_ratio: str | None = "1:1",
+        ):
             one_pixel_png = (
                 "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNgAAIAAAUA"
                 "AV7zKjoAAAAASUVORK5CYII="

@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
+import ai.models  # noqa: F401, E402
 from core.config import settings  # noqa: E402
 from database import Base  # noqa: E402
 

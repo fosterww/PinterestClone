@@ -20,6 +20,7 @@ from users.schemas import UserCreate
 from pins.schemas import PinCreate, PinUpdate, CreatedAt, Popularity
 
 from auth.service import AuthService
+from core.exception import ProviderError
 from pins.service.pin import PinService
 from users.repository import UserRepository
 from auth.repository import AuthRepository
@@ -102,6 +103,28 @@ async def test_create_pin_with_tags(pin_svc: PinService, sample_user):
     assert created_pin is not None
     tag_names = {t.name for t in created_pin.tags}
     assert tag_names == {"nature", "travel"}
+
+
+@pytest.mark.asyncio
+async def test_create_pin_raises_provider_error_when_ai_description_fails(
+    pin_svc: PinService, sample_user, monkeypatch
+):
+    monkeypatch.setattr(
+        pin_svc.gemini_service,
+        "generate_description",
+        lambda image_bytes, title: None,
+    )
+    pin_data = PinCreate(
+        title="AI Description Pin",
+        tags=["nature"],
+        generate_ai_description=True,
+    )
+
+    with pytest.raises(ProviderError) as excinfo:
+        await pin_svc.create_pin(mock_image_file(), sample_user, pin_data)
+
+    assert excinfo.value.status_code == 502
+    assert excinfo.value.detail == "Failed to generate description"
 
 
 @pytest.mark.asyncio

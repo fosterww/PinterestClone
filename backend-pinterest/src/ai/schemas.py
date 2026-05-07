@@ -34,3 +34,4 @@ class GeneratedImageResponse(BaseModel):
 
 class GenerateImageResponse(BaseModel):
     generated_images: list[GeneratedImageResponse]
+    operation_id: uuid.UUID | None = None
