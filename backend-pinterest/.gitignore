@@ -9,6 +9,7 @@ wheels/
 # Virtual environments
 .venv
 .env
+.env.render
 .pytest_cache
 .ruff_cache/
 .mypy_cache/
