@@ -8,6 +8,7 @@ interface CreatePinModalProps {
         description?: string;
         link_url?: string;
         tags?: string[];
+        generate_ai_description?: boolean;
         image: File;
     }) => void;
     isPending: boolean;
@@ -22,6 +23,7 @@ export function CreatePinModal({ isOpen, onClose, onSubmit, isPending, error }: 
     const [description, setDescription] = useState("");
     const [linkUrl, setLinkUrl] = useState("");
     const [tagsInput, setTagsInput] = useState("");
+    const [generateAiDescription, setGenerateAiDescription] = useState(false);
 
     if (!isOpen) return null;
 
@@ -32,6 +34,13 @@ export function CreatePinModal({ isOpen, onClose, onSubmit, isPending, error }: 
         setPreview(URL.createObjectURL(file));
     };
 
+    const handleDescriptionChange = (value: string) => {
+        setDescription(value);
+        if (value.trim()) {
+            setGenerateAiDescription(false);
+        }
+    };
+
     const handleClose = () => {
         setPreview(null);
         setImageFile(null);
@@ -39,6 +48,7 @@ export function CreatePinModal({ isOpen, onClose, onSubmit, isPending, error }: 
         setDescription("");
         setLinkUrl("");
         setTagsInput("");
+        setGenerateAiDescription(false);
         onClose();
     };
 
@@ -56,6 +66,7 @@ export function CreatePinModal({ isOpen, onClose, onSubmit, isPending, error }: 
             description: description || undefined,
             link_url: linkUrl || undefined,
             tags: tags.length > 0 ? tags : undefined,
+            generate_ai_description: generateAiDescription,
             image: imageFile,
         });
     };
@@ -117,12 +128,30 @@ export function CreatePinModal({ isOpen, onClose, onSubmit, isPending, error }: 
                                 id="pin-desc"
                                 className="form-input"
                                 value={description}
-                                onChange={e => setDescription(e.target.value)}
+                                onChange={e => handleDescriptionChange(e.target.value)}
                                 placeholder="Tell everyone about this pin"
                                 rows={3}
                                 style={{ resize: "vertical", height: "auto", paddingTop: 10 }}
                             />
                         </div>
+
+                        <label className="checkbox-row" htmlFor="pin-ai-description">
+                            <input
+                                id="pin-ai-description"
+                                type="checkbox"
+                                checked={generateAiDescription}
+                                onChange={e => setGenerateAiDescription(e.target.checked)}
+                                disabled={Boolean(description.trim())}
+                            />
+                            <span>
+                                Generate description with AI
+                                <small>
+                                    {description.trim()
+                                        ? "Clear manual description to use AI generation."
+                                        : "Gemini will write a short description from the image and title."}
+                                </small>
+                            </span>
+                        </label>
 
                         <div className="form-group">
                             <label htmlFor="pin-link">Link</label>

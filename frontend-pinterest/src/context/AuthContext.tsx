@@ -1,18 +1,8 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import { jwtDecode } from "jwt-decode";
 import { login, logout, register, loginWithGoogle, refreshToken } from "../api/auth";
-
-interface AuthContextType {
-  isAuthenticated: boolean;
-  login: typeof login;
-  loginWithGoogle: typeof loginWithGoogle;
-  register: typeof register;
-  logout: typeof logout;
-  refreshToken: typeof refreshToken;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+import { AuthContext } from "./auth-context";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -28,7 +18,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           localStorage.removeItem("access_token");
           setIsAuthenticated(false);
         }
-      } catch (error) {
+      } catch {
         setIsAuthenticated(false);
       }
     }
@@ -86,10 +76,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
-}

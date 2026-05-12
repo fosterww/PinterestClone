@@ -1,5 +1,15 @@
-import { apiClient } from "./clients";
+import { apiClient, getApiErrorMessage } from "./clients";
 import type { Pin, PinFilters, PinDetail, PinComments, PinCommentCreate } from "../types/api";
+
+export interface CreatePinRequest {
+    title: string;
+    description?: string;
+    link_url?: string;
+    tags?: string[];
+    generate_ai_description?: boolean;
+    image?: File;
+    generated_pin_id?: string;
+}
 
 function serializeFilters(filters: PinFilters, offset: number, limit: number) {
     const params: Record<string, unknown> = { offset, limit };
@@ -23,18 +33,25 @@ export async function getPins(
     return response.data;
 }
 
-export async function createPin(data: {
-    title: string;
-    description?: string;
-    link_url?: string;
-    tags?: string[];
-    image: File;
-}): Promise<Pin> {
+export async function getPersonalizedPins(): Promise<Pin[]> {
+    const response = await apiClient.get<Pin[]>("/pins/personalized");
+    return response.data;
+}
+
+export async function createPin(data: CreatePinRequest): Promise<Pin> {
+    if ((data.image && data.generated_pin_id) || (!data.image && !data.generated_pin_id)) {
+        throw new Error("Provide either image or generated_pin_id");
+    }
+
     const formData = new FormData();
-    formData.append("image", data.image);
+    if (data.image) formData.append("image", data.image);
+    if (data.generated_pin_id) formData.append("generated_pin_id", data.generated_pin_id);
     formData.append("title", data.title);
     if (data.description) formData.append("description", data.description);
     if (data.link_url) formData.append("link_url", data.link_url);
+    if (data.generate_ai_description === true) {
+        formData.append("generate_ai_description", "true");
+    }
     (data.tags ?? []).forEach(tag => formData.append("tags", tag));
     const token = localStorage.getItem("access_token");
     const response = await fetch("/api/v2/pins/", {
@@ -52,7 +69,7 @@ export async function createPin(data: {
     }
     if (!response.ok) {
         const error = await response.json().catch(() => ({}));
-        throw new Error(error?.detail ?? `HTTP ${response.status}`);
+        throw new Error(getApiErrorMessage(error, `HTTP ${response.status}`));
     }
 
     return response.json() as Promise<Pin>;

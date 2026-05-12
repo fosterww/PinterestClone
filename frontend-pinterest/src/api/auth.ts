@@ -1,12 +1,12 @@
 import { apiClient } from './clients';
-import type { User, RegisterData } from '../types/api';
+import type { AuthTokenResponse, RegisterData, UserResponse } from '../types/api';
 
 export async function login(username: string, password: string): Promise<string> {
     const formData = new URLSearchParams();
     formData.append("username", username);
     formData.append("password", password);
 
-    const response = await apiClient.post("/auth/login", formData, {
+    const response = await apiClient.post<AuthTokenResponse>("/auth/login", formData, {
         headers: {
             "Content-Type": "application/x-www-form-urlencoded"
         }
@@ -21,7 +21,7 @@ export async function login(username: string, password: string): Promise<string>
 }
 
 export async function loginWithGoogle(idToken: string): Promise<string> {
-    const response = await apiClient.post("/auth/google", { id_token: idToken });
+    const response = await apiClient.post<AuthTokenResponse>("/auth/google", { id_token: idToken });
     const { access_token, refresh_token } = response.data;
     localStorage.setItem("access_token", access_token);
     if (refresh_token) {
@@ -30,8 +30,8 @@ export async function loginWithGoogle(idToken: string): Promise<string> {
     return access_token;
 }
 
-export async function register(userData: RegisterData): Promise<User> {
-    const response = await apiClient.post("/auth/register", userData);
+export async function register(userData: RegisterData): Promise<UserResponse> {
+    const response = await apiClient.post<UserResponse>("/auth/register", userData);
     return response.data;
 }
 
@@ -39,7 +39,7 @@ export async function refreshToken(): Promise<string> {
     const token = localStorage.getItem("refresh_token");
     if (!token) throw new Error("No refresh token available");
 
-    const response = await apiClient.post("/auth/refresh", { refresh_token: token });
+    const response = await apiClient.post<AuthTokenResponse>("/auth/refresh", { refresh_token: token });
     const { access_token, refresh_token: new_refresh } = response.data;
     localStorage.setItem("access_token", access_token);
     if (new_refresh) {

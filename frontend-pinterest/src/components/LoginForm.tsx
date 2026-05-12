@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { GoogleLogin } from "@react-oauth/google";
-import { useAuth } from "../context/AuthContext";
+import type { CredentialResponse } from "@react-oauth/google";
+import { getApiErrorMessage } from "../api/clients";
+import { useAuth } from "../context/useAuth";
 
 type Mode = "login" | "register";
 
@@ -25,16 +27,19 @@ export function LoginForm() {
         await register({ username, email, password });
         await login(username, password);
       }
-    } catch (err: any) {
-      const msg =
-        err.response?.data?.detail ?? (mode === "login" ? "Invalid credentials" : "Registration failed");
-      setError(typeof msg === "string" ? msg : JSON.stringify(msg));
+    } catch (err: unknown) {
+      setError(
+        getApiErrorMessage(
+          err,
+          mode === "login" ? "Invalid credentials" : "Registration failed"
+        )
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleSuccess = async (credentialResponse: any) => {
+  const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
     try {
       setLoading(true);
       setError("");
@@ -43,9 +48,8 @@ export function LoginForm() {
       } else {
         setError("Google authentication failed. No credential received.");
       }
-    } catch (err: any) {
-      const msg = err.response?.data?.detail ?? "Google authentication failed";
-      setError(typeof msg === "string" ? msg : JSON.stringify(msg));
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, "Google authentication failed"));
     } finally {
       setLoading(false);
     }

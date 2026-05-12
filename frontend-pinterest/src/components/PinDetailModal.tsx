@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { getPinDetail, getRelatedPins, likePin, unlikePin, addComment } from "../api/pins";
 import { PinGrid } from "./PinGrid";
 
@@ -12,6 +13,7 @@ interface PinDetailModalProps {
 
 export function PinDetailModal({ pinId, onClose, onPinSelect }: PinDetailModalProps) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [commentText, setCommentText] = useState("");
 
   const { data: pin, isLoading, isError } = useQuery({
@@ -51,6 +53,12 @@ export function PinDetailModal({ pinId, onClose, onPinSelect }: PinDetailModalPr
     }
   };
 
+  const handleOwnerClick = () => {
+    if (!pin?.user?.username) return;
+    onClose();
+    navigate(`/users/${pin.user.username}`);
+  };
+
   if (isError) return null;
 
   return (
@@ -68,12 +76,18 @@ export function PinDetailModal({ pinId, onClose, onPinSelect }: PinDetailModalPr
               </div>
               <div className="pdm-info-col">
                 <div className="pdm-top-bar">
-                  <div className="pdm-user">
+                  <button className="pdm-user pdm-user-btn" onClick={handleOwnerClick}>
                     <div className="header-avatar" style={{ width: 32, height: 32, fontSize: 12 }}>
-                      {pin.user?.username?.[0] || 'U'}
+                      {pin.user.avatar_url ? (
+                        <img src={pin.user.avatar_url} alt="" />
+                      ) : (
+                        pin.user.username[0]?.toUpperCase() || "U"
+                      )}
                     </div>
-                    <span style={{ fontWeight: 600 }}>{pin.user?.username || 'Unknown User'}</span>
-                  </div>
+                    <span style={{ fontWeight: 600 }}>
+                      {pin.user.full_name || pin.user.username}
+                    </span>
+                  </button>
                   <button
                     className="btn btn-ghost"
                     onClick={handleLikeToggle}

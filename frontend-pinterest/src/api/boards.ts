@@ -1,16 +1,16 @@
 import { apiClient } from "./clients";
-import type { Board, BoardDetail } from "../types/api";
+import type { Board, BoardDetail, Visibility } from "../types/api";
 
 export interface BoardCreate {
     title: string;
     description?: string;
-    visibility?: "public" | "private";
+    visibility?: Visibility;
 }
 
 export interface BoardUpdate {
     title?: string;
     description?: string;
-    visibility?: "public" | "private";
+    visibility?: Visibility;
 }
 
 export async function getBoards(): Promise<Board[]> {

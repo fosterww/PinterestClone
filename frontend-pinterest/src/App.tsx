@@ -1,36 +1,47 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import type { FormEvent } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getPins, createPin } from './api/pins'
+import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
+import { Search } from 'lucide-react'
+import { getPins, createPin, getPersonalizedPins } from './api/pins'
+import { getApiErrorMessage } from './api/clients'
 import { PinGrid } from './components/PinGrid'
-import { useAuth } from './context/AuthContext'
+import { useAuth } from './context/useAuth'
 import { LoginForm } from './components/LoginForm'
 import { CreatePinModal } from './components/CreatePinModal'
 import { SearchFilters } from './components/SearchFilters'
 import { PinDetailModal } from './components/PinDetailModal'
+import { AccountButton } from './components/AccountButton'
+import { BoardPage } from './pages/BoardPage'
+import { UserPage } from './pages/UserPage'
+import { SearchPage } from './pages/SearchPage'
 import type { PinFilters } from './types/api'
 
-function SearchIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-      <circle cx="11" cy="11" r="8" />
-      <path d="m21 21-4.35-4.35" />
-    </svg>
-  );
-}
+type FeedMode = "all" | "personalized";
 
-function App() {
+function HomePage() {
   const { isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [filters, setFilters] = useState<PinFilters>({});
+  const [feedMode, setFeedMode] = useState<FeedMode>("all");
+  const [searchInput, setSearchInput] = useState("");
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
 
   const { data: pins, isLoading, isError } = useQuery({
-    queryKey: ["pins", filters],
-    queryFn: () => getPins(filters, 0, 100),
-    enabled: isAuthenticated,
+    queryKey: ["pins", feedMode, filters, isAuthenticated],
+    queryFn: () => feedMode === "personalized" && isAuthenticated
+      ? getPersonalizedPins()
+      : getPins(filters, 0, 100),
     staleTime: 30_000,
   });
+
+  useEffect(() => {
+    if (!isAuthenticated && feedMode === "personalized") {
+      setFeedMode("all");
+    }
+  }, [feedMode, isAuthenticated]);
 
   const createMutation = useMutation({
     mutationFn: createPin,
@@ -40,47 +51,76 @@ function App() {
     },
   });
 
-  if (!isAuthenticated) return <LoginForm />;
-
   const mutationError = createMutation.error
-    ? (createMutation.error as any)?.response?.data?.detail ?? "Failed to create pin"
+    ? getApiErrorMessage(createMutation.error, "Failed to create pin")
     : null;
+
+  function handleSearchSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const query = searchInput.trim();
+    if (!query) return;
+    navigate(`/search?q=${encodeURIComponent(query)}&target=all`);
+  }
 
   return (
     <div>
       <header className="header">
-        <a className="header-logo" href="/" aria-label="Home">P</a>
+        <Link className="header-logo" to="/" aria-label="Home">P</Link>
 
-        <div className="header-search">
-          <span className="header-search-icon"><SearchIcon /></span>
+        <form className="header-search" onSubmit={handleSearchSubmit}>
+          <span className="header-search-icon"><Search size={18} strokeWidth={2.5} /></span>
           <input
             type="search"
             placeholder="Search"
             aria-label="Search"
-            value={filters.search ?? ""}
-            onChange={(e) =>
-              setFilters((prev) => ({ ...prev, search: e.target.value || undefined }))
-            }
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
           />
-        </div>
+        </form>
 
-        <SearchFilters filters={filters} onChange={setFilters} />
+        {isAuthenticated && (
+          <div className="feed-switch" aria-label="Feed">
+            <button
+              type="button"
+              className={feedMode === "all" ? "feed-switch-btn active" : "feed-switch-btn"}
+              onClick={() => setFeedMode("all")}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              className={feedMode === "personalized" ? "feed-switch-btn active" : "feed-switch-btn"}
+              onClick={() => setFeedMode("personalized")}
+            >
+              For you
+            </button>
+          </div>
+        )}
 
-        <button
-          className="btn btn-red"
-          style={{ flexShrink: 0, height: 40, padding: "0 16px" }}
-          onClick={() => setShowCreate(true)}
-        >
-          Create
-        </button>
+        {feedMode === "all" && <SearchFilters filters={filters} onChange={setFilters} />}
 
-        <button
-          className="btn btn-outline"
-          style={{ flexShrink: 0, height: 40, padding: "0 16px" }}
-          onClick={logout}
-        >
-          Logout
-        </button>
+        {isAuthenticated ? (
+          <>
+            <button
+              className="btn btn-red"
+              style={{ flexShrink: 0, height: 40, padding: "0 16px" }}
+              onClick={() => setShowCreate(true)}
+            >
+              Create
+            </button>
+
+            <button
+              className="btn btn-outline"
+              style={{ flexShrink: 0, height: 40, padding: "0 16px" }}
+              onClick={logout}
+            >
+              Logout
+            </button>
+          </>
+        ) : (
+          <AccountButton />
+        )}
+        {isAuthenticated && <AccountButton />}
       </header>
 
       <div className="app-container">
@@ -95,7 +135,7 @@ function App() {
             <PinGrid
               pins={pins ?? []}
               isLoading={isLoading}
-              onPinClick={(p) => setSelectedPinId(p.id)}
+              onPinClick={(p) => isAuthenticated ? setSelectedPinId(p.id) : navigate("/auth")}
             />
           )}
         </main>
@@ -109,14 +149,36 @@ function App() {
         )}
       </div>
 
-      <CreatePinModal
-        isOpen={showCreate}
-        onClose={() => setShowCreate(false)}
-        onSubmit={(data) => createMutation.mutate(data)}
-        isPending={createMutation.isPending}
-        error={typeof mutationError === "string" ? mutationError : null}
-      />
+      {isAuthenticated && (
+        <CreatePinModal
+          isOpen={showCreate}
+          onClose={() => setShowCreate(false)}
+          onSubmit={(data) => createMutation.mutate(data)}
+          isPending={createMutation.isPending}
+          error={typeof mutationError === "string" ? mutationError : null}
+        />
+      )}
     </div>
+  );
+}
+
+function AuthPage() {
+  const { isAuthenticated } = useAuth();
+
+  if (isAuthenticated) return <Navigate to="/" replace />;
+
+  return <LoginForm />;
+}
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<HomePage />} />
+      <Route path="/auth" element={<AuthPage />} />
+      <Route path="/search" element={<SearchPage />} />
+      <Route path="/users/:username" element={<UserPage />} />
+      <Route path="/boards/:boardId" element={<BoardPage />} />
+    </Routes>
   );
 }
 
