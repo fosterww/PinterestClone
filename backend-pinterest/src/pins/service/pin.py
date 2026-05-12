@@ -16,6 +16,7 @@ from ai.prompts import build_description_generation_prompt
 from ai.tracking import record_ai_operation
 from boards.models import (
     GeneratedPinModel,
+    PinEditHistoryModel,
     PinEditSource,
     PinModel,
     PinModerationStatus,
@@ -416,6 +417,24 @@ class PinService:
         except Exception:
             await self.db.rollback()
             raise AppError(detail="Failed to delete pin")
+
+    async def get_pin_history(
+        self, pin_id: uuid.UUID, user: UserModel
+    ) -> List[PinEditHistoryModel]:
+        try:
+            pin = await self.repo.get_pin_by_id(pin_id)
+            if not pin:
+                raise NotFoundError(detail="Pin not found")
+            if pin.owner_id != user.id:
+                raise ForbiddenError(detail="Not the pin owner")
+            pin_history = await self.repo.get_history(pin_id)
+            return pin_history
+        except AppError:
+            await self.db.rollback()
+            raise
+        except Exception:
+            await self.db.rollback()
+            raise AppError(detail="Failed to get pin history")
 
     async def like_pin(self, pin_id: uuid.UUID, user_id: uuid.UUID) -> PinModel:
         try:

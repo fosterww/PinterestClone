@@ -26,6 +26,7 @@ from pins.schemas import (
     PinCreate,
     PinListResponse,
     PinResponse,
+    PinHistory,
     PinUpdate,
 )
 from pins.service.comment import CommentService
@@ -319,3 +320,14 @@ async def get_related_pins(
             seen_ids.add(db_pin.id)
 
     return merged_pins
+
+
+@router.get("/{pin_id}/history", response_model=List[PinHistory])
+@limiter.limit("10/minute")
+async def get_pin_history(
+    request: Request,
+    pin_id: uuid.UUID,
+    current_user: UserModel = Depends(get_current_user),
+    pin_service: PinService = Depends(get_pin_service),
+) -> List[PinHistory]:
+    return await pin_service.get_pin_history(pin_id, current_user)

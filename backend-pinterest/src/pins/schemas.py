@@ -4,7 +4,7 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from boards.models import PinModerationStatus, PinProcessingState
+from boards.models import PinEditSource, PinModerationStatus, PinProcessingState
 from tags.schemas import TagResponse
 from users.schemas import UserSearchResponse
 
@@ -91,6 +91,18 @@ class PinResponse(PinBase):
     is_duplicate: bool = False
     duplicate_of_pin_id: uuid.UUID | None = None
     comments: list[PinCommentResponse] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PinHistory(BaseModel):
+    id: uuid.UUID
+    source: PinEditSource
+    changed_fields: list[str] | None = None
+    before: dict | None = None
+    after: dict | None = None
+    reason: str | None = None
+    created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 

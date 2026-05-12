@@ -1,5 +1,6 @@
 import io
 import uuid
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -7,7 +8,12 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from boards.models import PinModel, PinModerationStatus, PinProcessingState
+from boards.models import (
+    PinEditHistoryModel,
+    PinModel,
+    PinModerationStatus,
+    PinProcessingState,
+)
 
 
 @pytest.fixture
@@ -289,6 +295,87 @@ async def _create_pin(
     )
     assert response.status_code == 201, response.text
     return response.json()
+
+
+@pytest.mark.asyncio
+async def test_get_pin_history_returns_owner_history_newest_first(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    fake_image: bytes,
+):
+    headers = await _register_and_login(
+        client, "history_owner", "history_owner@example.com"
+    )
+    pin = await _create_pin(client, headers, "History Pin", fake_image=fake_image)
+
+    response = await client.patch(
+        f"/api/v2/pins/{pin['id']}",
+        json={"title": "History Pin Updated"},
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+
+    result = await db_session.execute(
+        select(PinEditHistoryModel).where(
+            PinEditHistoryModel.pin_id == uuid.UUID(pin["id"])
+        )
+    )
+    histories = result.scalars().all()
+    assert len(histories) == 2
+    now = datetime.now(timezone.utc)
+    for history in histories:
+        if history.reason == "pin_created":
+            history.created_at = now - timedelta(minutes=1)
+        if history.reason == "pin_updated":
+            history.created_at = now
+    await db_session.flush()
+
+    response = await client.get(f"/api/v2/pins/{pin['id']}/history", headers=headers)
+
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert [entry["reason"] for entry in data] == ["pin_updated", "pin_created"]
+    assert data[0]["source"] == "user"
+    assert data[0]["changed_fields"] == ["title"]
+    assert data[0]["before"] == {"title": "History Pin"}
+    assert data[0]["after"] == {"title": "History Pin Updated"}
+    assert data[1]["before"] is None
+    assert data[1]["after"]["title"] == "History Pin"
+
+
+@pytest.mark.asyncio
+async def test_get_pin_history_rejects_non_owner(
+    client: AsyncClient,
+    fake_image: bytes,
+):
+    owner_headers = await _register_and_login(
+        client, "history_owner_2", "history_owner_2@example.com"
+    )
+    other_headers = await _register_and_login(
+        client, "history_other", "history_other@example.com"
+    )
+    pin = await _create_pin(
+        client, owner_headers, "Private History", fake_image=fake_image
+    )
+
+    response = await client.get(
+        f"/api/v2/pins/{pin['id']}/history", headers=other_headers
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Not the pin owner"
+
+
+@pytest.mark.asyncio
+async def test_get_pin_history_unknown_pin_returns_404(client: AsyncClient):
+    headers = await _register_and_login(
+        client, "history_missing", "history_missing@example.com"
+    )
+
+    response = await client.get(f"/api/v2/pins/{uuid.uuid4()}/history", headers=headers)
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Pin not found"
 
 
 @pytest.mark.asyncio

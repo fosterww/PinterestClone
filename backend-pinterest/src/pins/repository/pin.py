@@ -310,6 +310,25 @@ class PinRepository:
             logger.error(f"Database error while deleting pin: {pin.id}")
             raise AppError()
 
+    async def get_history(self, pin_id: uuid.UUID) -> List[PinEditHistoryModel]:
+        try:
+            query = (
+                select(PinEditHistoryModel)
+                .where(PinEditHistoryModel.pin_id == pin_id)
+                .order_by(PinEditHistoryModel.created_at.desc())
+            )
+            result = await self.db.execute(query)
+            pin_history = result.scalars().all()
+            return pin_history
+        except IntegrityError:
+            await self.db.rollback()
+            logger.error(f"Database error while getting pin history: {pin_id}")
+            raise ConflictError("Cannot get pin edit history")
+        except SQLAlchemyError:
+            await self.db.rollback()
+            logger.error(f"Database error while getting pin edit history: {pin_id}")
+            raise AppError()
+
     async def _get_generated_pin(
         self, generated_pin_id: uuid.UUID, owner_id: uuid.UUID
     ) -> GeneratedPinModel:
