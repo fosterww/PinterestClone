@@ -1,7 +1,14 @@
 import pytest
 from sqlalchemy import select
 
-from ai.models import AIOperationModel, AIOperationType, AIProvider, AIStatus
+from ai.models import (
+    AIOperationModel,
+    AIOperationType,
+    AIProvider,
+    AIStatus,
+    AIUsageRecordModel,
+)
+from ai.quota import QuotaMetadata
 from ai.prompts import (
     build_description_generation_prompt,
     build_image_generation_prompt,
@@ -9,12 +16,15 @@ from ai.prompts import (
 )
 from ai.schemas import GenerateImageRequest
 from ai.service import OpenAIService
+from ai.safety import validate_image_prompt
 from ai.tracking import record_ai_operation
+from boards.models import GeneratedPinModel, PinModerationStatus
 from core.exception import (
     AITimeoutError,
     InvalidAIOutputError,
     ProviderError,
     RateLimitError,
+    BadRequestError,
 )
 from users.models import UserModel
 
@@ -108,6 +118,7 @@ async def test_generate_image_provider_failures_are_recorded(
         _FakeS3Service(),
         _FakeOpenAIClient(exc=exc),
         db_session,
+        _FakeQuotaService(),
     )
 
     with pytest.raises(type(exc)) as excinfo:
@@ -137,6 +148,7 @@ async def test_generate_image_invalid_output_cleans_up_and_records_failure(db_se
             ]
         ),
         db_session,
+        _FakeQuotaService(),
     )
     request = GenerateImageRequest.model_construct(
         prompt="test image",
@@ -168,6 +180,7 @@ async def test_generate_image_passes_aspect_ratio_to_openai_client(db_session):
         _FakeS3Service(),
         openai_client,
         db_session,
+        _FakeQuotaService(),
     )
 
     await service.generate_image(
@@ -176,6 +189,70 @@ async def test_generate_image_passes_aspect_ratio_to_openai_client(db_session):
     )
 
     assert openai_client.last_aspect_ratio == "16:9"
+
+
+@pytest.mark.asyncio
+async def test_generate_image_blocks_unsafe_prompt_before_openai_call(db_session):
+    user = await _create_user(db_session)
+    openai_client = _FakeOpenAIClient(response=[{"b64_json": ONE_PIXEL_PNG}])
+    service = OpenAIService(
+        _FakeS3Service(),
+        openai_client,
+        db_session,
+        _FakeQuotaService(),
+    )
+
+    with pytest.raises(BadRequestError) as excinfo:
+        await service.generate_image(
+            GenerateImageRequest(prompt="graphic gore poster"),
+            user,
+        )
+
+    operation = await db_session.scalar(select(AIOperationModel))
+    assert excinfo.value.status_code == 400
+    assert excinfo.value.detail == "Prompt violates image generation policy"
+    assert openai_client.call_count == 0
+    assert operation is not None
+    assert operation.status == AIStatus.FAILED
+    assert operation.error_message == "400: Prompt violates image generation policy"
+    assert operation.user_id == user.id
+
+
+@pytest.mark.asyncio
+async def test_generate_image_stores_generated_asset_as_approved(db_session):
+    user = await _create_user(db_session)
+    service = OpenAIService(
+        _FakeS3Service(),
+        _FakeOpenAIClient(response=[{"b64_json": ONE_PIXEL_PNG}]),
+        db_session,
+        _FakeQuotaService(),
+    )
+
+    response = await service.generate_image(
+        GenerateImageRequest(prompt="test image"), user
+    )
+
+    generated_pin = await db_session.get(
+        GeneratedPinModel,
+        response.generated_images[0].id,
+    )
+    assert generated_pin is not None
+    assert generated_pin.moderation_status == PinModerationStatus.APPROVED
+    assert generated_pin.moderation_reason is None
+    usage = await db_session.scalar(select(AIUsageRecordModel))
+    assert usage is not None
+    assert usage.user_id == user.id
+    assert usage.operation_id == response.operation_id
+    assert usage.action_type == AIOperationType.IMAGE_GENERATION
+    assert usage.units_used == 1
+    assert response.quota.remaining == 4
+
+
+def test_validate_image_prompt_raises_bad_request_error_for_blocked_terms():
+    with pytest.raises(BadRequestError) as exc:
+        validate_image_prompt("Nudity in public places")
+    assert exc.value.status_code == 400
+    assert exc.value.detail == "Prompt violates image generation policy"
 
 
 async def _create_user(db_session) -> UserModel:
@@ -196,6 +273,7 @@ class _FakeOpenAIClient:
         self.response = response
         self.exc = exc
         self.last_aspect_ratio: str | None = None
+        self.call_count = 0
 
     def generate_image(
         self,
@@ -203,6 +281,7 @@ class _FakeOpenAIClient:
         number_of_images: int = 1,
         aspect_ratio: str | None = "1:1",
     ):
+        self.call_count += 1
         self.last_aspect_ratio = aspect_ratio
         if self.exc is not None:
             raise self.exc
@@ -229,3 +308,16 @@ class _FakeS3Service:
 
     async def delete_bytes_from_s3(self, url: str):
         self.deleted_urls.append(url)
+
+
+class _FakeQuotaService:
+    async def check_and_reserve(self, user_id, operation_type):
+        from datetime import UTC, datetime
+
+        return QuotaMetadata(
+            operation_type=operation_type,
+            limit=5,
+            used=1,
+            remaining=4,
+            resets_at=datetime(2026, 5, 12, tzinfo=UTC),
+        )

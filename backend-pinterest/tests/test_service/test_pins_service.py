@@ -1,5 +1,6 @@
 import io
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import pytest
 import pytest_asyncio
@@ -10,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from auth.repository import AuthRepository
 from auth.service import AuthService
 from boards.models import (
+    GeneratedPinModel,
     PinEditHistoryModel,
     PinModel,
     PinModerationStatus,
@@ -121,6 +123,32 @@ async def test_create_pin_raises_provider_error_when_ai_description_fails(
 
     assert excinfo.value.status_code == 502
     assert excinfo.value.detail == "Failed to generate description"
+
+
+@pytest.mark.asyncio
+async def test_create_pin_rejects_unapproved_generated_asset(
+    db_session: AsyncSession, pin_svc: PinService, sample_user
+):
+    generated_pin = GeneratedPinModel(
+        user_id=sample_user.id,
+        image_url="http://mock-s3-url.com/generated/blocked.png",
+        prompt="blocked prompt",
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        moderation_status=PinModerationStatus.HIDDEN,
+        moderation_reason="Unsafe generated image",
+    )
+    db_session.add(generated_pin)
+    await db_session.flush()
+
+    with pytest.raises(HTTPException) as excinfo:
+        await pin_svc.create_pin(
+            None,
+            sample_user,
+            PinCreate(title="Blocked Generated Pin", generated_pin_id=generated_pin.id),
+        )
+
+    assert excinfo.value.status_code == 400
+    assert excinfo.value.detail == "Generated image is not approved for publishing"
 
 
 @pytest.mark.asyncio

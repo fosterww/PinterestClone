@@ -26,6 +26,33 @@ class CacheService:
             logger.error(f"Error setting key {key}: {e}")
             raise Exception(f"Error set key {key}")
 
+    async def increment(self, key: str, amount: int = 1) -> int:
+        try:
+            if not key:
+                raise Exception()
+            return await self.redis.incrby(key, amount)
+        except RedisError as e:
+            logger.error(f"Error incrementing key {key}: {e}")
+            raise Exception(f"Error increment key {key}")
+
+    async def decrement(self, key: str, amount: int = 1) -> int:
+        try:
+            if not key:
+                raise Exception()
+            return await self.redis.decrby(key, amount)
+        except RedisError as e:
+            logger.error(f"Error decrementing key {key}: {e}")
+            raise Exception(f"Error decrement key {key}")
+
+    async def expire_at(self, key: str, when) -> None:
+        try:
+            if not key:
+                raise Exception()
+            await self.redis.expireat(key, when)
+        except RedisError as e:
+            logger.error(f"Error setting expire time for key {key}: {e}")
+            raise Exception(f"Error expire key {key}")
+
     async def delete(self, key: str):
         try:
             if not key:

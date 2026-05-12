@@ -1,8 +1,9 @@
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from enum import Enum
 
-from sqlalchemy import JSON, DateTime
+from sqlalchemy import JSON, DateTime, Numeric
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy import ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -21,6 +22,7 @@ class AIProvider(str, Enum):
 class AIOperationType(str, Enum):
     IMAGE_GENERATION = "image_generation"
     TAG_GENERATION = "tag_generation"
+    RETRIES = "retries"
     DESCRIPTION_GENERATION = "description_generation"
     IMAGE_INDEXING = "image_indexing"
     VISUAL_SEARCH = "visual_search"
@@ -89,3 +91,36 @@ class AIOperationModel(Base):
     generated_pin: Mapped["GeneratedPinModel | None"] = relationship(
         "GeneratedPinModel"
     )
+
+
+class AIUsageRecordModel(Base):
+    __tablename__ = "ai_usages"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    operation_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("ai_operations.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    action_type: Mapped[AIOperationType] = mapped_column(
+        SAEnum(
+            AIOperationType,
+            values_callable=lambda enum: [item.value for item in enum],
+            name="aioperationtype",
+        ),
+        nullable=False,
+        index=True,
+    )
+    units_used: Mapped[int] = mapped_column(
+        nullable=False, default=1, server_default="1"
+    )
+    tokens_used: Mapped[int | None] = mapped_column(nullable=True)
+    cost_usd: Mapped[Decimal] = mapped_column(
+        Numeric(10, 6), nullable=False, default=Decimal("0.000000")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), index=True
+    )
+    user: Mapped["UserModel"] = relationship("UserModel")
+    operation: Mapped["AIOperationModel | None"] = relationship("AIOperationModel")

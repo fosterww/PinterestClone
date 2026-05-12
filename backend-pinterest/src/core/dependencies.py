@@ -5,6 +5,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai.service import OpenAIService
+from ai.quota import QuotaService
 from auth.repository import AuthRepository
 from auth.service import AuthService
 from boards.repository import BoardRepository
@@ -83,6 +84,10 @@ def get_cache_service(redis: Redis = Depends(get_redis)) -> CacheService:
     return CacheService(redis)
 
 
+def get_quota_service(cache: CacheService = Depends(get_cache_service)) -> QuotaService:
+    return QuotaService(cache)
+
+
 async def get_s3_service() -> S3Service:
     return S3Service()
 
@@ -96,8 +101,9 @@ def get_ai_service(
     db: AsyncSession = Depends(get_db),
     s3_service: S3Service = Depends(get_s3_service),
     openai_client: OpenAIClient = Depends(get_openai_client),
+    quota_service: QuotaService = Depends(get_quota_service),
 ) -> OpenAIService:
-    return OpenAIService(s3_service, openai_client, db)
+    return OpenAIService(s3_service, openai_client, db, quota_service)
 
 
 def get_notification_service(

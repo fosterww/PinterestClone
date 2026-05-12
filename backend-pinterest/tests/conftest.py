@@ -98,6 +98,7 @@ def mock_cache_service():
 
     class MockCacheService:
         def __init__(self):
+            self._store = {}
             self.redis = MagicMock()
             self.redis.lrem = AsyncMock()
             self.redis.lpush = AsyncMock()
@@ -105,13 +106,27 @@ def mock_cache_service():
             self.redis.lrange = AsyncMock(return_value=[])
 
         async def get(self, key):
-            return None
+            return self._store.get(key)
 
         async def set(self, key, value, ttl=None):
+            self._store[key] = value
+
+        async def increment(self, key, amount=1):
+            self._store[key] = int(self._store.get(key, 0)) + amount
+            return self._store[key]
+
+        async def decrement(self, key, amount=1):
+            self._store[key] = int(self._store.get(key, 0)) - amount
+            return self._store[key]
+
+        async def expire_at(self, key, when):
             pass
 
         async def delete_pattern(self, pattern):
             pass
+
+        async def delete(self, key):
+            self._store.pop(key, None)
 
     return MockCacheService()
 

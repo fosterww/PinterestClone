@@ -23,12 +23,14 @@ class BuiltPrompt:
 
 def build_image_generation_prompt(data: GenerateImageRequest) -> BuiltPrompt:
     prompt = data.prompt
+    if not prompt.strip():
+        raise ValueError("Prompt cannot be empty")
     requirements: list[str] = []
-    if data.style:
+    if data.style and data.style.strip():
         requirements.append(f"Style: {data.style}")
     if data.aspect_ratio:
         requirements.append(f"Target aspect ratio: {data.aspect_ratio}")
-    if data.negative_prompt:
+    if data.negative_prompt and data.negative_prompt.strip():
         requirements.append(f"Avoid: {data.negative_prompt}")
     if data.seed is not None:
         requirements.append(f"Use seed {data.seed} if supported by the model")
@@ -50,7 +52,9 @@ def build_tag_generation_prompt(
     description: str | None,
     image_bytes: bytes,
 ) -> BuiltPrompt:
-    desc_text = description or "No description"
+    desc_text = (
+        description.strip() if description and description.strip() else "No description"
+    )
     parts = [
         f"Title: {title}",
         f"Description: {desc_text}",

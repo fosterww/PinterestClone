@@ -71,5 +71,13 @@ class Settings(BaseSettings):
     gemini_api_key: str
     openai_api_key: str
 
+    ai_image_generations_per_day: int = 5
+    ai_tag_generations_per_day: int = 30
+    ai_description_generations_per_day: int = 10
+    ai_image_indexings_per_day: int = 100
+    ai_visual_searches_per_day: int = 100
+    ai_retries_per_day: int = 10
+    ai_openai_image_generation_cost_usd: str = "0.040000"
+
 
 settings = Settings()

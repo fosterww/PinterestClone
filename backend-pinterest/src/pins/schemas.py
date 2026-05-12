@@ -64,6 +64,9 @@ class PinListResponse(PinBase):
     image_width: int | None = None
     image_height: int | None = None
     dominant_colors: list[str] | None = None
+    last_processing_error: str | None = None
+    tagged_at: datetime | None = None
+    indexed_at: datetime | None = None
     is_duplicate: bool = False
     duplicate_of_pin_id: uuid.UUID | None = None
 
@@ -77,6 +80,16 @@ class PinResponse(PinBase):
     image_url: str
     tags: list[TagResponse]
     created_at: datetime
+    processing_state: PinProcessingState
+    moderation_status: PinModerationStatus
+    image_width: int | None = None
+    image_height: int | None = None
+    dominant_colors: list[str] | None = None
+    last_processing_error: str | None = None
+    tagged_at: datetime | None = None
+    indexed_at: datetime | None = None
+    is_duplicate: bool = False
+    duplicate_of_pin_id: uuid.UUID | None = None
     comments: list[PinCommentResponse] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)

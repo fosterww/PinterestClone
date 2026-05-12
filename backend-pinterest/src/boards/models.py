@@ -160,6 +160,17 @@ class GeneratedPinModel(Base):
     user: Mapped["UserModel"] = relationship(
         "UserModel", back_populates="generated_pins"
     )
+    moderation_status: Mapped["PinModerationStatus"] = mapped_column(
+        SAEnum(
+            PinModerationStatus,
+            values_callable=lambda enum: [item.value for item in enum],
+            name="generatedpinmoderationstatus",
+        ),
+        default=PinModerationStatus.APPROVED,
+        server_default=PinModerationStatus.APPROVED.value,
+        nullable=False,
+    )
+    moderation_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
 
 class PinEditHistoryModel(Base):

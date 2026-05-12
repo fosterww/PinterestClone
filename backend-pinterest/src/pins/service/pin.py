@@ -110,6 +110,8 @@ class PinService:
             generated_pin = await self.repo._get_generated_pin(
                 data.generated_pin_id, owner.id
             )
+            if generated_pin.moderation_status != PinModerationStatus.APPROVED:
+                raise BadRequestError("Generated image is not approved for publishing")
             original_content = await self.s3_service.download_bytes_from_url(
                 generated_pin.image_url
             )

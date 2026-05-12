@@ -7,14 +7,17 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ai.models import AIOperationType, AIProvider, AIStatus
+from ai.models import AIUsageRecordModel, AIOperationType, AIProvider, AIStatus
 from ai.prompts import BuiltPrompt, build_image_generation_prompt
+from ai.quota import QuotaService, operation_unit_cost, quota_metadata_to_dict
+from ai.safety import validate_image_prompt
 from ai.schemas import GenerateImageRequest, GenerateImageResponse
 from ai.tracking import record_ai_operation
-from boards.models import GeneratedPinModel
+from boards.models import GeneratedPinModel, PinModerationStatus
 from core.exception import (
     AITimeoutError,
     AppError,
+    BadRequestError,
     InvalidAIOutputError,
     ProviderError,
     RateLimitError,
@@ -31,16 +34,27 @@ class OpenAIService:
         s3_service: S3Service,
         openai_client: OpenAIClient,
         db: AsyncSession,
+        quota_service: QuotaService,
     ) -> None:
         self.db = db
         self.s3_service = s3_service
         self.openai_client = openai_client
+        self.quota_service = quota_service
 
     async def generate_image(
         self, data: GenerateImageRequest, user: UserModel
     ) -> GenerateImageResponse:
         prompt = build_image_generation_prompt(data)
         started_at = perf_counter()
+        try:
+            validate_image_prompt(data.prompt)
+        except BadRequestError as exc:
+            await self._record_failed_operation(prompt, started_at, user, exc)
+            raise
+
+        quota = await self.quota_service.check_and_reserve(
+            user.id, AIOperationType.IMAGE_GENERATION
+        )
 
         try:
             response = await asyncio.to_thread(
@@ -79,6 +93,7 @@ class OpenAIService:
                     prompt=data.prompt,
                     style=data.style,
                     expires_at=datetime.now(timezone.utc) + timedelta(hours=24),
+                    moderation_status=PinModerationStatus.APPROVED,
                 )
                 self.db.add(generated_pin)
                 generated_images.append(generated_pin)
@@ -95,6 +110,12 @@ class OpenAIService:
                 user_id=user.id,
                 generated_pin_id=generated_images[0].id if generated_images else None,
             )
+            self._record_usage(
+                user_id=user.id,
+                operation_id=operation.id,
+                operation_type=AIOperationType.IMAGE_GENERATION,
+                units_used=data.num_images,
+            )
             await self.db.commit()
         except AppError as exc:
             await self.db.rollback()
@@ -110,6 +131,7 @@ class OpenAIService:
         return GenerateImageResponse(
             generated_images=generated_images,
             operation_id=operation.id,
+            quota=quota_metadata_to_dict(quota),
         )
 
     async def _extract_image_bytes(self, item: Any) -> bytes:
@@ -166,3 +188,20 @@ class OpenAIService:
 
     def _model_name(self) -> str:
         return getattr(self.openai_client, "IMAGE_MODEL", "dall-e-3")
+
+    def _record_usage(
+        self,
+        user_id,
+        operation_id,
+        operation_type: AIOperationType,
+        units_used: int,
+    ) -> None:
+        self.db.add(
+            AIUsageRecordModel(
+                user_id=user_id,
+                operation_id=operation_id,
+                action_type=operation_type,
+                units_used=units_used,
+                cost_usd=operation_unit_cost(operation_type) * units_used,
+            )
+        )
