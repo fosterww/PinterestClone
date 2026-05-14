@@ -1,10 +1,20 @@
-from typing import Literal
+from typing import Literal, TypeAlias
 
 from openai import APITimeoutError, OpenAI
 from openai import RateLimitError as OpenAIRateLimitError
 
 from core.exception import AITimeoutError, ProviderError, RateLimitError
 from core.logger import logger
+
+OpenAIImageSize: TypeAlias = Literal[
+    "1024x1024",
+    "1024x1536",
+    "1024x1792",
+    "1536x1024",
+    "1792x1024",
+    "256x256",
+    "512x512",
+]
 
 
 class OpenAIClient:
@@ -39,9 +49,10 @@ class OpenAIClient:
 
     def _size_from_aspect_ratio(
         self, aspect_ratio: Literal["1:1", "16:9", "9:16"] | None
-    ) -> str:
-        if aspect_ratio == "16:9":
-            return "1792x1024"
-        if aspect_ratio == "9:16":
-            return "1024x1792"
-        return "1024x1024"
+    ) -> OpenAIImageSize:
+        mapping: dict[str, OpenAIImageSize] = {
+            "16:9": "1792x1024",
+            "9:16": "1024x1792",
+            "1:1": "1024x1024",
+        }
+        return mapping.get(aspect_ratio or "1:1", "1024x1024")

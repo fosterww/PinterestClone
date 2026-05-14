@@ -1,3 +1,7 @@
+import uuid
+from ai.schemas import AIOperationOutput
+from core.exception import NotFoundError
+from ai.repository import AIRepository
 import asyncio
 import base64
 import binascii
@@ -35,11 +39,13 @@ class OpenAIService:
         openai_client: OpenAIClient,
         db: AsyncSession,
         quota_service: QuotaService,
+        ai_repository: AIRepository,
     ) -> None:
         self.db = db
         self.s3_service = s3_service
         self.openai_client = openai_client
         self.quota_service = quota_service
+        self.ai_repository = ai_repository
 
     async def generate_image(
         self, data: GenerateImageRequest, user: UserModel
@@ -55,6 +61,9 @@ class OpenAIService:
         quota = await self.quota_service.check_and_reserve(
             user.id, AIOperationType.IMAGE_GENERATION
         )
+
+        if not isinstance(prompt.content, str):
+            raise ProviderError("Invalid prompt format")
 
         try:
             response = await asyncio.to_thread(
@@ -133,6 +142,16 @@ class OpenAIService:
             operation_id=operation.id,
             quota=quota_metadata_to_dict(quota),
         )
+
+    async def get_operation_by_id(
+        self,
+        operation_id: uuid.UUID,
+        user: UserModel,
+    ) -> AIOperationOutput:
+        operation = await AIRepository(self.db).get_operation_by_id(operation_id, user)
+        if operation is None:
+            raise NotFoundError("AI operation not found")
+        return AIOperationOutput.from_operation(operation)
 
     async def _extract_image_bytes(self, item: Any) -> bytes:
         if isinstance(item, dict):

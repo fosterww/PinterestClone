@@ -54,7 +54,7 @@ class PinService:
         self.s3_service = s3_service
         self.gemini_service = gemini_service
 
-    async def get_pin_by_id(self, pin_id: uuid.UUID) -> PinModel | None:
+    async def get_pin_by_id(self, pin_id: uuid.UUID) -> PinModel:
         result = await self.repo.get_pin_by_id(pin_id)
         if result is None:
             raise NotFoundError("Pin not found")
@@ -83,7 +83,7 @@ class PinService:
 
     async def get_pin_by_id_and_increment_views(
         self, pin_id: uuid.UUID, current_user_id: uuid.UUID | None = None
-    ) -> PinModel | None:
+    ) -> PinModel:
         pin = await self.repo.get_pin_by_id(pin_id)
         if pin is None:
             raise NotFoundError("Pin not found")
@@ -118,9 +118,11 @@ class PinService:
             )
             self._validate_image_bytes(original_content)
             image_url = generated_pin.image_url
-        else:
+        elif image is not None:
             original_content = await self._read_uploaded_image(image)
             image_url = await self.s3_service.upload_image_to_s3(image)
+        else:
+            raise BadRequestError("Either image or generated_pin_id is required")
 
         base64_thumb = self._build_base64_thumbnail(original_content)
         image_metadata = self._extract_image_metadata(original_content)
@@ -232,6 +234,16 @@ class PinService:
                 )
         return pin
 
+    async def _get_owned_pin_and_ensure_pin_owner(
+        self, pin_id: uuid.UUID, user: UserModel
+    ) -> PinModel:
+        pin = await self.repo.get_pin_by_id(pin_id)
+        if pin is None:
+            raise NotFoundError("Pin not found")
+        if pin.owner_id != user.id:
+            raise ForbiddenError("You do not have permission to access this pin")
+        return pin
+
     async def _read_uploaded_image(self, image: UploadFile | None) -> bytes:
         if image is None:
             raise BadRequestError("Image is required")
@@ -276,10 +288,10 @@ class PinService:
                 colors = None
             if isinstance(colors, list):
                 sorted_colors = sorted(colors, key=lambda item: item[0], reverse=True)
-                dominant_colors = [
-                    f"#{red:02x}{green:02x}{blue:02x}"
-                    for _, (red, green, blue) in sorted_colors[:5]
-                ]
+                for _, color in sorted_colors[:5]:
+                    if isinstance(color, (tuple, list)) and len(color) >= 3:
+                        r, g, b = color[:3]
+                        dominant_colors.append(f"#{r:02x}{g:02x}{b:02x}")
             return {
                 "image_width": width,
                 "image_height": height,
@@ -296,8 +308,7 @@ class PinService:
     async def update_pin(
         self, pin: PinModel, data: PinUpdate, current_user: UserModel
     ) -> PinModel:
-        if pin.owner_id != current_user.id:
-            raise ForbiddenError("Not the pin owner")
+        await self._get_owned_pin_and_ensure_pin_owner(pin.id, current_user)
         update_data = data.model_dump(exclude_unset=True)
         changed_fields = []
         before = {}
@@ -351,8 +362,7 @@ class PinService:
     async def retry_pin_processing(
         self, pin: PinModel, current_user: UserModel
     ) -> PinModel:
-        if pin.owner_id != current_user.id:
-            raise ForbiddenError("Not the pin owner")
+        await self._get_owned_pin_and_ensure_pin_owner(pin.id, current_user)
         if pin.processing_state != PinProcessingState.FAILED:
             raise BadRequestError("Only failed pins can be retried")
         if pin.is_duplicate:
@@ -406,8 +416,7 @@ class PinService:
         return pin
 
     async def delete_pin(self, pin: PinModel, current_user: UserModel) -> None:
-        if pin.owner_id != current_user.id:
-            raise ForbiddenError("Not the pin owner")
+        await self._get_owned_pin_and_ensure_pin_owner(pin.id, current_user)
         try:
             await self.repo.delete_pin(pin)
             await self.db.commit()
@@ -422,11 +431,7 @@ class PinService:
         self, pin_id: uuid.UUID, user: UserModel
     ) -> List[PinEditHistoryModel]:
         try:
-            pin = await self.repo.get_pin_by_id(pin_id)
-            if not pin:
-                raise NotFoundError(detail="Pin not found")
-            if pin.owner_id != user.id:
-                raise ForbiddenError(detail="Not the pin owner")
+            await self._get_owned_pin_and_ensure_pin_owner(pin_id, user)
             pin_history = await self.repo.get_history(pin_id)
             return pin_history
         except AppError:
@@ -449,7 +454,7 @@ class PinService:
         except Exception:
             await self.db.rollback()
             raise AppError(detail="Failed to like pin")
-        return await self.repo.get_pin_by_id(pin_id)
+        return await self.get_pin_by_id(pin_id)
 
     async def unlike_pin(self, pin_id: uuid.UUID, user_id: uuid.UUID) -> PinModel:
         try:
@@ -464,4 +469,4 @@ class PinService:
         except Exception:
             await self.db.rollback()
             raise AppError(detail="Failed to unlike pin")
-        return await self.repo.get_pin_by_id(pin_id)
+        return await self.get_pin_by_id(pin_id)

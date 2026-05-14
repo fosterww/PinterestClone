@@ -45,7 +45,8 @@ async def read_board(
     board_service: BoardService = Depends(get_board_service),
 ) -> BoardPinsResponse:
     """Get a board by id."""
-    return await board_service.get_board_by_id(board_id, current_user)
+    board = await board_service.get_board_by_id(board_id, current_user)
+    return BoardPinsResponse.model_validate(board)
 
 
 @router.patch("/{board_id}")

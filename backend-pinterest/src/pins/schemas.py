@@ -95,7 +95,7 @@ class PinResponse(PinBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-class PinHistory(BaseModel):
+class PinHistoryResponse(BaseModel):
     id: uuid.UUID
     source: PinEditSource
     changed_fields: list[str] | None = None

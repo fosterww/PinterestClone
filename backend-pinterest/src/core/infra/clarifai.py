@@ -33,7 +33,7 @@ class ClarifaiService:
         url = f"{self.base_url}/inputs"
 
         payload = {
-            "inputs": [{"id": str(pin_id), "data": {"image": {"base64": base64_image}}}]
+            "inputs": [{"id": pin_id, "data": {"image": {"base64": base64_image}}}]
         }
 
         try:
@@ -47,9 +47,7 @@ class ClarifaiService:
     async def search_similar_images_by_id(self, pin_id: str) -> List[str]:
         url = f"{self.base_url}/annotations/searches"
         payload = {
-            "searches": [
-                {"query": {"ranks": [{"annotation": {"input_id": str(pin_id)}}]}}
-            ]
+            "searches": [{"query": {"ranks": [{"annotation": {"input_id": pin_id}}]}}]
         }
 
         try:
@@ -63,7 +61,7 @@ class ClarifaiService:
             for hit in hits:
                 hit_id = hit.get("input", {}).get("id")
                 score = hit.get("score", 0)
-                if hit_id and hit_id != str(pin_id) and score > 0.6:
+                if hit_id and hit_id != pin_id and score > 0.6:
                     similar_pin_ids.append(hit_id)
             return similar_pin_ids
         except Exception as e:

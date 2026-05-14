@@ -1,3 +1,8 @@
+x-app-image: &app-image
+  image: pinterest-backend:local
+  build:
+    context: .
+
 services:
   db:
     image: postgres:16-alpine
@@ -76,10 +81,16 @@ services:
       retries: 10
 
   celery:
-    build: .
+    <<: *app-image
     container_name: pinterest_celery
+    profiles:
+      - worker
     depends_on:
       rabbitmq:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     env_file:
       - .env
@@ -91,22 +102,31 @@ services:
     command: celery -A core.infra.celery worker --loglevel=info
 
   celery-beat:
-    build: .
+    <<: *app-image
     container_name: pinterest_celery_beat
+    profiles:
+      - worker
     depends_on:
       rabbitmq:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     env_file:
       - .env
     environment:
-      - PYTHONPATH=/app/src
+      - PYTHONPATH=/app/src 
     volumes:
       - ./src:/app/src
+      - cache:/app/cache
     command: celery -A core.infra.celery beat --loglevel=info
 
   prometheus:
     image: prom/prometheus:latest
     container_name: pinterest_prometheus
+    profiles:
+      - monitoring
     depends_on:
       - api
     command:
@@ -121,6 +141,8 @@ services:
   grafana:
     image: grafana/grafana:latest
     container_name: pinterest_grafana
+    profiles:
+      - monitoring
     ports:
       - "3000:3000"
     environment:
@@ -135,7 +157,7 @@ services:
       - ./src/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
 
   api:
-    build: .
+    <<: *app-image
     container_name: pinterest_api
     depends_on:
       db:

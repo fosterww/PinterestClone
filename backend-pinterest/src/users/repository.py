@@ -95,7 +95,7 @@ class UserRepository:
                 .limit(limit)
                 .offset(offset)
             )
-            return result.scalars().all()
+            return list(result.scalars())
         except SQLAlchemyError:
             logger.error(f"Database error while searching users by username: {query}")
             raise AppError()
@@ -149,7 +149,7 @@ class UserRepository:
                 )
                 .where(user_follow_association.c.followed_id == user.id)
             )
-            return result.scalars().all()
+            return list(result.scalars())
         except NotFoundError:
             raise
         except SQLAlchemyError:
@@ -170,7 +170,7 @@ class UserRepository:
                 )
                 .where(user_follow_association.c.follower_id == user.id)
             )
-            return result.scalars().all()
+            return list(result.scalars())
         except NotFoundError:
             raise
         except SQLAlchemyError:
@@ -219,9 +219,16 @@ class UserRepository:
                 user_follow_association.c.follower_id == follower_id,
                 user_follow_association.c.followed_id == followed_user.id,
             )
-            result = await self.db.execute(query)
-            if result.rowcount == 0:
-                raise NotFoundError("Follow relationship not found")
+            dialect_name = self.db.get_bind().dialect.name
+            if dialect_name in ("postgresql", "sqlite"):
+                query = query.returning(user_follow_association.c.follower_id)
+                result = await self.db.execute(query)
+                if result.scalar_one_or_none() is None:
+                    raise NotFoundError("Follow relationship not found")
+            else:
+                result = await self.db.execute(query)
+                if getattr(result, "rowcount", 0) == 0:
+                    raise NotFoundError("Follow relationship not found")
             await self.db.flush()
         except NotFoundError:
             raise
@@ -259,7 +266,7 @@ class UserRepository:
                     user_follow_association.c.follower_id == follower_id
                 )
             )
-            return list(result.scalars().all())
+            return list(result.scalars())
         except SQLAlchemyError:
             logger.error(
                 f"Database error while fetching followed users for follower: {follower_id}"
@@ -273,7 +280,7 @@ class UserRepository:
                 .select_from(user_follow_association)
                 .where(user_follow_association.c.followed_id == user_id)
             )
-            return int(result or 0)
+            return result or 0
         except SQLAlchemyError:
             logger.error(f"Database error while counting followers for user: {user_id}")
             raise AppError()
@@ -285,7 +292,7 @@ class UserRepository:
                 .select_from(user_follow_association)
                 .where(user_follow_association.c.follower_id == user_id)
             )
-            return int(result or 0)
+            return result or 0
         except SQLAlchemyError:
             logger.error(f"Database error while counting following for user: {user_id}")
             raise AppError()

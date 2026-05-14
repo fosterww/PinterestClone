@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from redis.asyncio import Redis
@@ -51,7 +51,12 @@ app.add_middleware(
 setup_metrics(app)
 
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> Response:
+    return _rate_limit_exceeded_handler(request, exc)
+
 
 app.include_router(auth_router, prefix="/api/v2/auth", tags=["auth"])
 app.include_router(ai_router, prefix="/api/v2/ai", tags=["ai"])

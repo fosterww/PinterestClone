@@ -167,7 +167,7 @@ class PinRepository:
                 query = query.order_by(PinModel.likes_count.asc())
 
             result = await self.db.execute(query.offset(offset).limit(limit))
-            return result.scalars().all()
+            return list(result.scalars().all())
         except SQLAlchemyError:
             logger.exception(f"Database error while fetching pins: {offset}, {limit}")
             raise AppError()
@@ -200,7 +200,7 @@ class PinRepository:
                 .where(*self.trusted_pin_filters())
                 .options(selectinload(PinModel.user), selectinload(PinModel.tags))
             )
-            return result.scalars().all()
+            return list(result.scalars().all())
         except SQLAlchemyError:
             logger.exception(f"Database error while fetching pins by IDs: {pin_ids}")
             raise AppError()
@@ -235,7 +235,7 @@ class PinRepository:
                 .options(selectinload(PinModel.user), selectinload(PinModel.tags))
                 .order_by(PinModel.created_at.desc())
             )
-            return result.scalars().all()
+            return list(result.scalars().all())
         except SQLAlchemyError:
             logger.exception(f"Database error while fetching user pins: {username}")
             raise AppError()
@@ -318,15 +318,11 @@ class PinRepository:
                 .order_by(PinEditHistoryModel.created_at.desc())
             )
             result = await self.db.execute(query)
-            pin_history = result.scalars().all()
-            return pin_history
-        except IntegrityError:
-            await self.db.rollback()
-            logger.error(f"Database error while getting pin history: {pin_id}")
-            raise ConflictError("Cannot get pin edit history")
+            return list(result.scalars().all())
         except SQLAlchemyError:
-            await self.db.rollback()
-            logger.error(f"Database error while getting pin edit history: {pin_id}")
+            logger.exception(
+                "Database error while getting pin edit history: %s", pin_id
+            )
             raise AppError()
 
     async def _get_generated_pin(

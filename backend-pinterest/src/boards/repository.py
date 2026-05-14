@@ -49,7 +49,7 @@ class BoardRepository:
                 .options(selectinload(BoardModel.user))
                 .order_by(BoardModel.updated_at.desc())
             )
-            return result.scalars().all()
+            return list(result.scalars())
         except SQLAlchemyError:
             logger.error(f"Database error while fetching boards: {user_id}")
             raise AppError()
@@ -65,7 +65,7 @@ class BoardRepository:
                 .options(selectinload(BoardModel.user))
                 .order_by(BoardModel.updated_at.desc())
             )
-            return result.scalars().all()
+            return list(result.scalars())
         except SQLAlchemyError:
             logger.error(f"Database error while fetching public boards: {user_id}")
             raise AppError()
@@ -117,7 +117,7 @@ class BoardRepository:
                 )
 
             result = await self.db.execute(stmt)
-            return result.scalars().all()
+            return list(result.scalars())
         except SQLAlchemyError:
             logger.error(f"Database error while searching boards: {query}")
             raise AppError()
@@ -148,20 +148,27 @@ class BoardRepository:
             values = {"board_id": board.id, "pin_id": pin.id}
             dialect_name = self.db.get_bind().dialect.name
             if dialect_name == "postgresql":
-                stmt = pg_insert(board_pin_association).values(**values)
-                stmt = stmt.on_conflict_do_nothing(
-                    index_elements=["board_id", "pin_id"]
+                stmt = (
+                    pg_insert(board_pin_association)
+                    .values(**values)
+                    .on_conflict_do_nothing(index_elements=["board_id", "pin_id"])
+                    .returning(board_pin_association.c.board_id)
                 )
             elif dialect_name == "sqlite":
-                stmt = sqlite_insert(board_pin_association).values(**values)
-                stmt = stmt.on_conflict_do_nothing(
-                    index_elements=["board_id", "pin_id"]
+                stmt = (
+                    sqlite_insert(board_pin_association)
+                    .values(**values)
+                    .on_conflict_do_nothing(index_elements=["board_id", "pin_id"])
+                    .returning(board_pin_association.c.board_id)
                 )
             else:
                 stmt = sa_insert(board_pin_association).values(**values)
+
             result = await self.db.execute(stmt)
-            if result.rowcount == 0:
-                raise ConflictError("Pin is already on this board")
+
+            if dialect_name in ("postgresql", "sqlite"):
+                if result.scalar_one_or_none() is None:
+                    raise ConflictError("Pin is already on this board")
             pin.saves_count += 1
             await self.db.flush()
             self.db.expire(board, ["pins"])
@@ -179,13 +186,20 @@ class BoardRepository:
 
     async def remove_pin_from_board(self, board: BoardModel, pin: PinModel) -> None:
         try:
+            dialect_name = self.db.get_bind().dialect.name
             stmt = delete(board_pin_association).where(
                 board_pin_association.c.board_id == board.id,
                 board_pin_association.c.pin_id == pin.id,
             )
-            result = await self.db.execute(stmt)
-            if result.rowcount:
-                pin.saves_count = max(pin.saves_count - 1, 0)
+            if dialect_name in ("postgresql", "sqlite"):
+                stmt = stmt.returning(board_pin_association.c.board_id)
+                result = await self.db.execute(stmt)
+                if result.scalar_one_or_none():
+                    pin.saves_count = max(pin.saves_count - 1, 0)
+            else:
+                result = await self.db.execute(stmt)
+                if getattr(result, "rowcount", 0):
+                    pin.saves_count = max(pin.saves_count - 1, 0)
             await self.db.flush()
             self.db.expire(board, ["pins"])
         except SQLAlchemyError:

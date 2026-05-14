@@ -1,3 +1,4 @@
+from ai.repository import AIRepository
 from functools import lru_cache
 
 from fastapi import Depends, Request
@@ -97,13 +98,18 @@ def get_openai_client() -> OpenAIClient:
     return OpenAIClient(settings.openai_api_key)
 
 
+def get_ai_repository(db: AsyncSession = Depends(get_db)) -> AIRepository:
+    return AIRepository(db)
+
+
 def get_ai_service(
     db: AsyncSession = Depends(get_db),
     s3_service: S3Service = Depends(get_s3_service),
     openai_client: OpenAIClient = Depends(get_openai_client),
     quota_service: QuotaService = Depends(get_quota_service),
+    ai_repository: AIRepository = Depends(get_ai_repository),
 ) -> OpenAIService:
-    return OpenAIService(s3_service, openai_client, db, quota_service)
+    return OpenAIService(s3_service, openai_client, db, quota_service, ai_repository)
 
 
 def get_notification_service(

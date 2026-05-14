@@ -26,7 +26,7 @@ from pins.schemas import (
     PinCreate,
     PinListResponse,
     PinResponse,
-    PinHistory,
+    PinHistoryResponse,
     PinUpdate,
 )
 from pins.service.comment import CommentService
@@ -61,7 +61,8 @@ async def create_new_pin(
         generate_ai_description=generate_ai_description,
         generated_pin_id=generated_pin_id,
     )
-    return await service.create_pin(image, current_user, data)
+    pin = await service.create_pin(image, current_user, data)
+    return PinListResponse.model_validate(pin)
 
 
 @router.get("/")
@@ -74,7 +75,7 @@ async def list_pins(
     service: PinService = Depends(get_pin_service),
 ) -> List[PinListResponse]:
     """Get all pins with optional filtering and pagination."""
-    return await service.get_pins(
+    pins = await service.get_pins(
         offset=pagination.offset,
         limit=pagination.limit,
         search=pagination.search,
@@ -82,6 +83,7 @@ async def list_pins(
         created_at=filter_pins.created_at,
         popularity=filter_pins.popularity,
     )
+    return [PinListResponse.model_validate(p) for p in pins]
 
 
 @router.get("/personalized")
@@ -92,7 +94,8 @@ async def read_personalized_pins(
     discovery_service: DiscoveryService = Depends(get_discovery_service),
 ) -> List[PinListResponse]:
     """Get personalized feed."""
-    return await discovery_service.get_personalized_feed(current_user.id)
+    pins = await discovery_service.get_personalized_feed(current_user.id)
+    return [PinListResponse.model_validate(p) for p in pins]
 
 
 @router.get("/{pin_id}")
@@ -112,7 +115,10 @@ async def read_pin(
         await discovery_service.record_tag_visit(current_user.id, tag_ids)
     comments = await comment_service.get_comments(pin_id)
     pin_data = PinListResponse.model_validate(pin)
-    return PinResponse(**pin_data.model_dump(), comments=comments)
+    return PinResponse(
+        **pin_data.model_dump(),
+        comments=[PinCommentResponse.model_validate(c) for c in comments],
+    )
 
 
 @router.get("/user/{username}")
@@ -123,7 +129,8 @@ async def read_user_pins(
     repo: PinRepository = Depends(get_pin_repository),
 ) -> List[PinListResponse]:
     """Get all pins by username."""
-    return await repo.get_user_pins(username)
+    pins = await repo.get_user_pins(username)
+    return [PinListResponse.model_validate(p) for p in pins]
 
 
 @router.post("/{pin_id}/like")
@@ -135,7 +142,8 @@ async def like_pin_handler(
     service: PinService = Depends(get_pin_service),
 ) -> PinListResponse:
     """Like a pin."""
-    return await service.like_pin(pin_id, current_user.id)
+    pin = await service.like_pin(pin_id, current_user.id)
+    return PinListResponse.model_validate(pin)
 
 
 @router.post("/{pin_id}/unlike")
@@ -147,7 +155,8 @@ async def unlike_pin_handler(
     service: PinService = Depends(get_pin_service),
 ) -> PinListResponse:
     """Unlike a pin."""
-    return await service.unlike_pin(pin_id, current_user.id)
+    pin = await service.unlike_pin(pin_id, current_user.id)
+    return PinListResponse.model_validate(pin)
 
 
 @router.patch("/{pin_id}")
@@ -161,7 +170,8 @@ async def patch_pin(
 ) -> PinListResponse:
     """Update a pin."""
     pin = await service.get_pin_by_id(pin_id)
-    return await service.update_pin(pin, data, current_user)
+    updated_pin = await service.update_pin(pin, data, current_user)
+    return PinListResponse.model_validate(updated_pin)
 
 
 @router.post("/{pin_id}/retry-processing")
@@ -174,7 +184,8 @@ async def retry_pin_processing(
 ) -> PinListResponse:
     """Retry failed pin image processing."""
     pin = await service.get_pin_by_id(pin_id)
-    return await service.retry_pin_processing(pin, current_user)
+    updated_pin = await service.retry_pin_processing(pin, current_user)
+    return PinListResponse.model_validate(updated_pin)
 
 
 @router.delete("/{pin_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -199,7 +210,8 @@ async def get_comments(
     comment_service: CommentService = Depends(get_comment_service),
 ) -> List[PinCommentResponse]:
     """Get comments for a pin."""
-    return await comment_service.get_comments(pin_id)
+    comments = await comment_service.get_comments(pin_id)
+    return [PinCommentResponse.model_validate(c) for c in comments]
 
 
 @router.post("/{pin_id}/comments")
@@ -212,9 +224,10 @@ async def add_comment(
     comment_service: CommentService = Depends(get_comment_service),
 ) -> PinCommentResponse:
     """Add a comment to a pin."""
-    return await comment_service.add_comment(
+    comment = await comment_service.add_comment(
         pin_id, data.parent_id, current_user.id, data.comment
     )
+    return PinCommentResponse.model_validate(comment)
 
 
 @router.post("/{pin_id}/comments/{comment_id}/like")
@@ -227,7 +240,10 @@ async def like_comment(
     comment_service: CommentService = Depends(get_comment_service),
 ) -> PinCommentResponse:
     """Like a comment."""
-    return await comment_service.add_comment_like(pin_id, comment_id, current_user.id)
+    comment = await comment_service.add_comment_like(
+        pin_id, comment_id, current_user.id
+    )
+    return PinCommentResponse.model_validate(comment)
 
 
 @router.post("/{pin_id}/comments/{comment_id}/unlike")
@@ -240,9 +256,10 @@ async def unlike_comment(
     comment_service: CommentService = Depends(get_comment_service),
 ) -> PinCommentResponse:
     """Unlike a comment."""
-    return await comment_service.delete_comment_like(
+    comment = await comment_service.delete_comment_like(
         pin_id, comment_id, current_user.id
     )
+    return PinCommentResponse.model_validate(comment)
 
 
 @router.patch("/{pin_id}/comments/{comment_id}")
@@ -255,7 +272,8 @@ async def patch_comment(
     comment_service: CommentService = Depends(get_comment_service),
 ) -> PinCommentResponse:
     """Update a comment."""
-    return await comment_service.update_comment(comment_id, current_user.id, text)
+    comment = await comment_service.update_comment(comment_id, current_user.id, text)
+    return PinCommentResponse.model_validate(comment)
 
 
 @router.delete(
@@ -319,15 +337,17 @@ async def get_related_pins(
             merged_pins.append(db_pin)
             seen_ids.add(db_pin.id)
 
-    return merged_pins
+    return [PinListResponse.model_validate(p) for p in merged_pins]
 
 
-@router.get("/{pin_id}/history", response_model=List[PinHistory])
+@router.get("/{pin_id}/history", response_model=List[PinHistoryResponse])
 @limiter.limit("10/minute")
 async def get_pin_history(
     request: Request,
     pin_id: uuid.UUID,
     current_user: UserModel = Depends(get_current_user),
     pin_service: PinService = Depends(get_pin_service),
-) -> List[PinHistory]:
-    return await pin_service.get_pin_history(pin_id, current_user)
+) -> List[PinHistoryResponse]:
+    """Get pin edit history."""
+    history = await pin_service.get_pin_history(pin_id, current_user)
+    return [PinHistoryResponse.model_validate(h) for h in history]

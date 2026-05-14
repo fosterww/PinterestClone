@@ -22,21 +22,8 @@ class AIQuotaExceededError(AppError):
     def __init__(self, metadata: QuotaMetadata):
         super().__init__(
             status_code=429,
-            detail={
-                "message": "AI quota exceeded",
-                "quota": quota_metadata_to_dict(metadata),
-            },
+            detail=f"AI quota exceeded: {metadata.operation_type} {metadata.limit}/{metadata.used}/{metadata.remaining} Resets at {metadata.resets_at}",
         )
-
-
-def quota_metadata_to_dict(metadata: QuotaMetadata) -> dict:
-    return {
-        "operation_type": metadata.operation_type.value,
-        "limit": metadata.limit,
-        "used": metadata.used,
-        "remaining": metadata.remaining,
-        "resets_at": metadata.resets_at.isoformat(),
-    }
 
 
 def daily_limits() -> dict[AIOperationType, int]:

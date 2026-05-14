@@ -1,5 +1,3 @@
-import json
-
 from google import genai
 from google.genai import types
 
@@ -27,8 +25,9 @@ class GeminiService:
                     response_mime_type="application/json",
                 ),
             )
-            text = response.text.strip()
-            tags = json.loads(text)
+            if response.text is None:
+                return None
+            tags = response.text.strip()
             if isinstance(tags, list):
                 return [str(tag).strip() for tag in tags if str(tag).strip()]
         except Exception:
@@ -46,7 +45,7 @@ class GeminiService:
                     response_mime_type="text/plain",
                 ),
             )
-            return response.text.strip()
+            return response.text.strip() if response.text else None
         except Exception:
             logger.exception("Gemini description generation failed")
         return None

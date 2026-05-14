@@ -20,7 +20,7 @@ async def register(
 ) -> UserResponse:
     """Register a new user."""
     user = await auth_service.register_user(data)
-    return user
+    return UserResponse.model_validate(user)
 
 
 @router.post("/login")

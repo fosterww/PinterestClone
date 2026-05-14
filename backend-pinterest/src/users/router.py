@@ -19,7 +19,7 @@ async def read_current_user(
     current_user: UserModel = Depends(get_current_user),
 ) -> UserResponse:
     """Get the current user."""
-    return current_user
+    return UserResponse.model_validate(current_user)
 
 
 @router.patch("/")
@@ -65,7 +65,8 @@ async def read_user_followers(
     user_service: UserService = Depends(get_user_service),
 ) -> list[UserResponse]:
     """Get followers for the given user."""
-    return await user_service.get_followers(username)
+    users_followers = await user_service.get_followers(username)
+    return [UserResponse.model_validate(user) for user in users_followers]
 
 
 @router.get("/{username}/following")
@@ -76,7 +77,8 @@ async def read_user_following(
     user_service: UserService = Depends(get_user_service),
 ) -> list[UserResponse]:
     """Get following for the given user."""
-    return await user_service.get_following(username)
+    users_following = await user_service.get_following(username)
+    return [UserResponse.model_validate(user) for user in users_following]
 
 
 @router.post("/{username}/follow")

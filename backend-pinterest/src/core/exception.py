@@ -36,8 +36,13 @@ class ForbiddenError(AppError):
 
 
 class ProviderError(AppError):
-    def __init__(self, detail: str = "AI provider failed"):
-        super().__init__(status_code=status.HTTP_502_BAD_GATEWAY, detail=detail)
+    def __init__(self, detail: str | None = None):
+        if detail:
+            super().__init__(status_code=status.HTTP_502_BAD_GATEWAY, detail=detail)
+        else:
+            super().__init__(
+                status_code=status.HTTP_502_BAD_GATEWAY, detail="AI provider failed"
+            )
 
 
 class InvalidAIOutputError(AppError):

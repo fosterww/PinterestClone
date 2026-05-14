@@ -47,11 +47,12 @@ class BoardService:
             raise AppError(detail="Failed to create board")
 
     async def get_user_boards(self, user_id: uuid.UUID) -> list[BoardResponse]:
-        return await self.board_repository.get_by_owner_id(user_id)
+        boards = await self.board_repository.get_by_owner_id(user_id)
+        return [BoardResponse.model_validate(board) for board in boards]
 
     async def get_board_by_id(
         self, board_id: uuid.UUID, current_user: UserModel | None = None
-    ) -> BoardModel | None:
+    ) -> BoardModel:
         result = await self.board_repository.get_by_id(board_id)
         if result is None:
             raise NotFoundError("Board not found")
@@ -74,9 +75,11 @@ class BoardService:
             raise NotFoundError("User not found")
 
         if current_user is not None and current_user.id == user.id:
-            return await self.board_repository.get_by_owner_id(user.id)
+            boards = await self.board_repository.get_by_owner_id(user.id)
+            return [BoardResponse.model_validate(board) for board in boards]
 
-        return await self.board_repository.get_public_by_owner_id(user.id)
+        boards = await self.board_repository.get_public_by_owner_id(user.id)
+        return [BoardResponse.model_validate(board) for board in boards]
 
     async def update_board(
         self,
